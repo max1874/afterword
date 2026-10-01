@@ -50,7 +50,7 @@ function Header() {
         <span className="grid size-9 place-items-center rounded-[3px] bg-seal text-lg font-semibold text-seal-ink">
           记
         </span>
-        <span className="text-2xl font-semibold tracking-[0.08em]">后记</span>
+        <span className="text-2xl font-semibold">后记</span>
       </Link>
       {root?.owner ? (
         <nav className="flex items-center gap-4 text-sm">

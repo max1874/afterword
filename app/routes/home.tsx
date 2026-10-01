@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
-import { Link } from "react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useFetcher } from "react-router";
 
 import type { Route } from "./+types/home";
 import { Cover } from "~/components/cover";
 import { Stars } from "~/components/stars";
-import { countByKindAndStatus, listMarked } from "~/lib/db.server";
+import { countByKindAndStatus, countByYear, listMarked } from "~/lib/db.server";
 import { coverSrc } from "~/lib/format";
 import {
   genericStatusLabel,
@@ -28,9 +29,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const kind = isKind(params.get("kind")) ? (params.get("kind") as Kind) : undefined;
   const status = isStatus(params.get("status")) ? (params.get("status") as Status) : undefined;
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const [{ items, hasMore }, counts] = await Promise.all([
+  const [{ items, hasMore }, counts, yearCounts] = await Promise.all([
     listMarked({ kind, status, page }),
     countByKindAndStatus(),
+    countByYear({ kind, status }),
   ]);
   return {
     ownerName: env.OWNER_NAME || "我",
@@ -39,16 +41,20 @@ export async function loader({ request }: Route.LoaderArgs) {
     page,
     hasMore,
     counts,
+    yearCounts,
     items: items.map((item) => ({ ...item, cover: coverSrc(item) })),
   };
 }
 
-function href(kind: Kind | undefined, status: Status | undefined, page = 1) {
+function filterParams(kind: Kind | undefined, status: Status | undefined) {
   const params = new URLSearchParams();
   if (kind) params.set("kind", kind);
   if (status) params.set("status", status);
-  if (page > 1) params.set("page", String(page));
-  const query = params.toString();
+  return params;
+}
+
+function href(kind: Kind | undefined, status: Status | undefined) {
+  const query = filterParams(kind, status).toString();
   return query ? `/?${query}` : "/";
 }
 
@@ -61,26 +67,20 @@ function total(counts: Counts, kind?: Kind, status?: Status) {
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { ownerName, kind, status, page, hasMore, counts, items } = loaderData;
+  const { ownerName, kind, status, counts, items } = loaderData;
   const root = useRoot();
-
-  const byYear = new Map<string, typeof items>();
-  for (const item of items) {
-    const year = item.marked_on.slice(0, 4);
-    byYear.set(year, [...(byYear.get(year) ?? []), item]);
-  }
 
   return (
     <>
       <section className="mb-10 border-b border-line pb-8">
         <h1 className="text-3xl font-semibold sm:text-4xl">{ownerName}的后记</h1>
-        <p className="mt-3 text-sm text-muted">
+        <p className="mt-3 text-xl font-semibold text-muted">
           看过 {total(counts, "screen", "done")} 部影视 · 读过 {total(counts, "book", "done")} 本书 ·
           读过 {total(counts, "comic", "done")} 部漫画 · 玩过 {total(counts, "game", "done")} 款游戏
         </p>
       </section>
 
-      <nav className="mb-3 flex flex-wrap gap-x-6 gap-y-2 text-lg font-medium">
+      <nav className="mb-3 flex flex-wrap gap-x-6 gap-y-2 text-lg font-semibold">
         <FilterLink to={href(undefined, status)} active={!kind}>
           全部
         </FilterLink>
@@ -112,43 +112,91 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           ) : null}
         </div>
       ) : (
-        [...byYear].map(([year, group]) => (
-          <section key={year} className="mb-12">
-            <h2 className="mb-5 flex items-baseline gap-3 font-semibold">
-              <span className="text-2xl">{year}</span>
-              <span className="text-sm text-muted">{group.length} 条</span>
-            </h2>
-            <ul className="grid grid-cols-3 gap-x-4 gap-y-7 sm:grid-cols-4 md:grid-cols-6">
-              {group.map((item) => (
-                <li key={item.id}>
-                  <Link to={`/items/${item.id}`} className="group block">
-                    <Cover
-                      src={item.cover}
-                      title={item.title}
-                      className="transition group-hover:-translate-y-0.5"
-                    />
-                    <p className="mt-2 line-clamp-2 text-sm leading-snug">{item.title}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-                      {item.rating ? (
-                        <Stars rating={item.rating} />
-                      ) : (
-                        <span>{statusLabel(item.status, item.kind)}</span>
-                      )}
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+        <Timeline key={`${kind}:${status}`} first={loaderData} />
       )}
+    </>
+  );
+}
 
-      {page > 1 || hasMore ? (
-        <nav className="flex justify-between border-t border-line pt-6 text-sm">
-          {page > 1 ? <Link to={href(kind, status, page - 1)}>← 较新</Link> : <span />}
-          {hasMore ? <Link to={href(kind, status, page + 1)}>更早 →</Link> : <span />}
-        </nav>
-      ) : null}
+type Page = Route.ComponentProps["loaderData"];
+
+/** Year-grouped cover wall that loads older marks as you scroll down. */
+function Timeline({ first }: { first: Page }) {
+  const { kind, status, yearCounts } = first;
+  const [items, setItems] = useState(first.items);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(first.hasMore);
+  const fetcher = useFetcher<Page>();
+  const sentinel = useRef<HTMLDivElement>(null);
+  const loading = fetcher.state !== "idle";
+
+  useEffect(() => {
+    const next = fetcher.data;
+    if (fetcher.state !== "idle" || !next || next.page !== page + 1) return;
+    setItems((prev) => {
+      const seen = new Set(prev.map((i) => i.id));
+      return [...prev, ...next.items.filter((i) => !seen.has(i.id))];
+    });
+    setPage(next.page);
+    setHasMore(next.hasMore);
+  }, [fetcher.state, fetcher.data, page]);
+
+  const loadMore = useCallback(() => {
+    if (loading || !hasMore) return;
+    const params = filterParams(kind, status);
+    params.set("index", "");
+    params.set("page", String(page + 1));
+    fetcher.load(`/?${params}`);
+  }, [loading, hasMore, kind, status, page, fetcher.load]);
+
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasMore) return;
+    const observer = new IntersectionObserver((entries) => entries[0].isIntersecting && loadMore(), {
+      rootMargin: "800px 0px",
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
+
+  const byYear = new Map<string, typeof items>();
+  for (const item of items) {
+    const year = item.marked_on.slice(0, 4);
+    byYear.set(year, [...(byYear.get(year) ?? []), item]);
+  }
+
+  return (
+    <>
+      {[...byYear].map(([year, group]) => (
+        <section key={year} className="mb-12">
+          <h2 className="mb-5 flex items-baseline gap-3 font-semibold">
+            <span className="text-3xl">{year}</span>
+            <span className="text-sm text-muted">{yearCounts[year] ?? group.length} 条</span>
+          </h2>
+          <ul className="grid grid-cols-3 gap-x-4 gap-y-7 sm:grid-cols-4 md:grid-cols-6">
+            {group.map((item) => (
+              <li key={item.id}>
+                <Link to={`/items/${item.id}`} className="group block">
+                  <Cover src={item.cover} title={item.title} className="transition group-hover:-translate-y-0.5" />
+                  <p className="mt-2 line-clamp-2 text-sm font-semibold">{item.title}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                    {item.rating ? <Stars rating={item.rating} /> : <span>{statusLabel(item.status, item.kind)}</span>}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      <div ref={sentinel} className="py-6 text-center text-sm text-muted">
+        {hasMore ? (
+          <button onClick={loadMore} disabled={loading} className="hover:text-ink">
+            {loading ? "加载中…" : "加载更早的记录"}
+          </button>
+        ) : (
+          <span>没有更早的了</span>
+        )}
+      </div>
     </>
   );
 }

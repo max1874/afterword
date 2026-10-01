@@ -32,13 +32,33 @@
   --color-line: var(--line);
   --color-seal: var(--seal);
   --color-seal-ink: var(--seal-ink);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+  /* Apple's type stack: SF for Latin, PingFang for Chinese. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "SF Pro Text", "PingFang SC",
+    "Helvetica Neue", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
+  /* Type scale measured from apple.com.cn (2026-10-02): 600 for headings, 400 for text,
+     tight leading on large sizes, 17px body, no extra tracking for Chinese. */
+  --text-xs: 12px;
+  --text-xs--line-height: 1.33;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.5;
+  --text-base: 17px;
+  --text-base--line-height: 1.47;
+  --text-lg: 19px;
+  --text-lg--line-height: 1.42;
+  --text-xl: 21px;
+  --text-xl--line-height: 1.38;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.29;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 1.25;
+  --text-4xl: 48px;
+  --text-4xl--line-height: 1.08;
 }
 
 html,
 body {
-  @apply bg-paper text-ink font-sans antialiased;
+  @apply bg-paper text-ink font-sans text-base antialiased;
 }
 
 input,

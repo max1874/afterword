@@ -138,7 +138,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
           {groups.map((group) => (
             <div key={group.source}>
               <h2 className="mb-3 flex items-baseline gap-2 text-sm text-muted">
-                <span className="font-medium text-ink">{group.label}</span>
+                <span className="font-semibold text-ink">{group.label}</span>
                 {group.error ? <span className="text-seal">搜索失败（{group.error}）</span> : <span>{group.items.length} 条</span>}
               </h2>
               <ul className="divide-y divide-line border-y border-line">
@@ -153,7 +153,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
       ) : null}
 
       <details className="mt-12 rounded-lg border border-line bg-card p-5 sm:p-6" open={Boolean(query) && total === 0}>
-        <summary className="cursor-pointer select-none text-lg font-medium">搜不到？手动添加</summary>
+        <summary className="cursor-pointer select-none text-lg font-semibold">搜不到？手动添加</summary>
         <ManualForm kind={kind} />
       </details>
 
@@ -177,7 +177,7 @@ function Candidate({ item }: { item: CandidateItem }) {
     <li className="flex gap-4 py-4">
       <Cover src={item.cover_url} title={item.title} className="w-16 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-lg font-medium leading-snug">{item.title}</p>
+        <p className="text-lg font-semibold">{item.title}</p>
         <p className="mt-0.5 text-sm text-muted">
           {[item.original_title, item.year, item.creators && `${creatorLabel(item.kind)} ${item.creators}`]
             .filter(Boolean)

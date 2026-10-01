@@ -39,7 +39,9 @@ export function today() {
   return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 }
 
-export async function listMarked(filter: { kind?: Kind; status?: Status; page: number }) {
+type MarkFilter = { kind?: Kind; status?: Status };
+
+function whereClause(filter: MarkFilter) {
   const where: string[] = [];
   const params: unknown[] = [];
   if (filter.kind) {
@@ -50,7 +52,25 @@ export async function listMarked(filter: { kind?: Kind; status?: Status; page: n
     where.push("m.status = ?");
     params.push(filter.status);
   }
-  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  return { clause: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+}
+
+/** Marks per year for the filter, so year headings stay right while pages load. */
+export async function countByYear(filter: MarkFilter) {
+  const { clause, params } = whereClause(filter);
+  const { results } = await env.DB.prepare(
+    `SELECT substr(m.marked_on, 1, 4) AS mark_year, COUNT(*) AS n
+     FROM marks m JOIN items i ON i.id = m.item_id
+     ${clause}
+     GROUP BY mark_year`,
+  )
+    .bind(...params)
+    .all<{ mark_year: string; n: number }>();
+  return Object.fromEntries(results.map((r) => [r.mark_year, r.n]));
+}
+
+export async function listMarked(filter: MarkFilter & { page: number }) {
+  const { clause, params } = whereClause(filter);
   const { results } = await env.DB.prepare(
     `SELECT i.*, m.status, m.rating, m.comment, m.marked_on
      FROM marks m JOIN items i ON i.id = m.item_id

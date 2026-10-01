@@ -70,7 +70,7 @@ export default function Import() {
   return (
     <>
       <h1 className="mb-3 text-3xl font-semibold">导入</h1>
-      <p className="mb-8 max-w-2xl text-sm leading-relaxed text-muted">
+      <p className="mb-8 max-w-2xl text-sm text-muted">
         选择一个 JSON 文件，内容是标记记录的数组，每条包含 <code>kind</code>、<code>status</code>、<code>title</code>、
         <code>marked_on</code>，以及可选的 <code>original_title</code>、<code>year</code>、<code>creators</code>、
         <code>cover_url</code>、<code>rating</code>、<code>comment</code>、<code>source</code>、<code>source_id</code>、

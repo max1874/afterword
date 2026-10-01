@@ -63,8 +63,8 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
       <Cover src={item.cover} title={item.title} className="w-36 sm:w-full" />
 
       <div className="min-w-0">
-        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{item.title}</h1>
-        {item.original_title ? <p className="mt-2 text-muted">{item.original_title}</p> : null}
+        <h1 className="text-3xl font-semibold sm:text-4xl">{item.title}</h1>
+        {item.original_title ? <p className="mt-2 text-xl font-semibold text-muted">{item.original_title}</p> : null}
         <p className="mt-3 text-sm text-muted">
           {meta}
           {item.source_url ? (
@@ -85,13 +85,13 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
               <Stars rating={item.rating ?? null} />
             </p>
             {item.comment ? (
-              <p className="mt-3 whitespace-pre-wrap text-lg leading-relaxed">{item.comment}</p>
+              <p className="mt-3 whitespace-pre-wrap">{item.comment}</p>
             ) : null}
           </section>
         ) : null}
 
         {item.summary ? (
-          <details className="mt-8 text-sm leading-relaxed text-muted">
+          <details className="mt-8 text-muted">
             <summary className="cursor-pointer select-none text-ink">简介</summary>
             <p className="mt-3 whitespace-pre-wrap">{item.summary}</p>
           </details>
