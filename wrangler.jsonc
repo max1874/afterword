@@ -1,0 +1,34 @@
+/**
+ * Wrangler configuration: https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * Before the first deploy, create the D1 database and R2 bucket in your own
+ * Cloudflare account and replace `database_id` below (see README).
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "afterword",
+	"compatibility_date": "2026-09-26",
+	"main": "./workers/app.ts",
+	"vars": {
+		// Name shown on your public page.
+		"OWNER_NAME": "Max"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "afterword",
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "COVERS",
+			"bucket_name": "afterword-covers"
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true
+}

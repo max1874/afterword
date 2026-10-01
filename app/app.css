@@ -1,0 +1,50 @@
+@import "tailwindcss" source(".");
+
+:root {
+  --paper: #f5f0e6;
+  --card: #fbf8f2;
+  --ink: #2a2521;
+  --muted: #857a6e;
+  --line: #e2d9ca;
+  --seal: #b5402c;
+  --seal-ink: #fbf8f2;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #191714;
+    --card: #221f1b;
+    --ink: #e9e2d6;
+    --muted: #9a8f82;
+    --line: #36312b;
+    --seal: #d0624b;
+    --seal-ink: #191714;
+    color-scheme: dark;
+  }
+}
+
+@theme {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-seal: var(--seal);
+  --color-seal-ink: var(--seal-ink);
+  --font-serif: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC",
+    "STSong", Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+}
+
+html,
+body {
+  @apply bg-paper text-ink font-sans antialiased;
+}
+
+input,
+textarea,
+select {
+  @apply rounded-md border border-line bg-card px-3 py-2 text-ink outline-none focus:border-seal;
+}

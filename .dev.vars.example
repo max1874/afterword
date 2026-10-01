@@ -1,0 +1,12 @@
+# Copy to .dev.vars for local development. In production set these with
+# `npx wrangler secret put <NAME>`.
+
+# Password for the owner account.
+OWNER_PASSWORD=change-me
+# Random string used to sign the login cookie, e.g. `openssl rand -hex 32`.
+SESSION_SECRET=replace-with-a-long-random-string
+
+# Optional. Enables film & series search via TMDB (API key or v4 read token).
+TMDB_API_KEY=
+# Optional. Adds Google Books to book search (Bangumi is always searched).
+GOOGLE_BOOKS_API_KEY=
