@@ -17,7 +17,7 @@
 		{
 			"binding": "DB",
 			"database_name": "afterword",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "83a6b8fe-4fc6-485d-bf6d-74985a766a48",
 			"migrations_dir": "migrations"
 		}
 	],
