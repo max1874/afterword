@@ -13,6 +13,7 @@ const SOURCE_LABELS: Record<string, string> = {
   bangumi: "Bangumi",
   tmdb: "TMDB",
   googlebooks: "Google Books",
+  douban: "豆瓣",
 };
 
 export function meta({ loaderData }: Route.MetaArgs) {

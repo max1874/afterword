@@ -156,6 +156,13 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
         <summary className="cursor-pointer select-none font-serif text-lg">搜不到？手动添加</summary>
         <ManualForm kind={kind} />
       </details>
+
+      <p className="mt-6 text-sm text-muted">
+        有一批旧记录？
+        <Link to="/import" className="ml-1 underline underline-offset-4 hover:text-ink">
+          从文件导入
+        </Link>
+      </p>
     </>
   );
 }

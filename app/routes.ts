@@ -4,6 +4,8 @@ export default [
   index("routes/home.tsx"),
   route("items/:id", "routes/item.tsx"),
   route("add", "routes/add.tsx"),
+  route("import", "routes/import.tsx"),
+  route("api/import", "routes/api.import.ts"),
   route("login", "routes/login.tsx"),
   route("logout", "routes/logout.tsx"),
   route("covers/:key", "routes/cover.ts"),

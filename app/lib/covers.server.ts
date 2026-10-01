@@ -4,6 +4,17 @@ import { USER_AGENT } from "./providers.server";
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
+
+function coverHeaders(url: string): HeadersInit {
+  // Douban's image hosts answer 418 unless the request looks like a browser on douban.com.
+  if (new URL(url).hostname.endsWith(".doubanio.com")) {
+    return { "User-Agent": BROWSER_UA, Referer: "https://www.douban.com/" };
+  }
+  return { "User-Agent": USER_AGENT };
+}
+
 /**
  * Copies a remote cover into R2 so the page no longer depends on the source
  * site. Returns null when the image cannot be fetched; callers then fall back
@@ -12,7 +23,7 @@ const MAX_COVER_BYTES = 5 * 1024 * 1024;
 export async function storeCover(url: string | null) {
   if (!url) return null;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    const res = await fetch(url, { headers: coverHeaders(url) });
     const type = res.headers.get("Content-Type") ?? "";
     if (!res.ok || !type.startsWith("image/")) return null;
     const body = await res.arrayBuffer();

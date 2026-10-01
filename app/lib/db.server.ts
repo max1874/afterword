@@ -83,9 +83,13 @@ export async function getItem(id: string) {
 }
 
 export async function findBySource(source: string, sourceId: string) {
-  return env.DB.prepare("SELECT id FROM items WHERE source = ? AND source_id = ?")
+  return env.DB.prepare("SELECT id, cover_key FROM items WHERE source = ? AND source_id = ?")
     .bind(source, sourceId)
-    .first<{ id: string }>();
+    .first<{ id: string; cover_key: string | null }>();
+}
+
+export async function setCoverKey(id: string, coverKey: string) {
+  await env.DB.prepare("UPDATE items SET cover_key = ? WHERE id = ?").bind(coverKey, id).run();
 }
 
 /** Marks already recorded for the given source ids, so search results can show them. */
