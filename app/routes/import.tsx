@@ -69,7 +69,7 @@ export default function Import() {
 
   return (
     <>
-      <h1 className="mb-3 font-serif text-3xl">导入</h1>
+      <h1 className="mb-3 text-3xl font-semibold">导入</h1>
       <p className="mb-8 max-w-2xl text-sm leading-relaxed text-muted">
         选择一个 JSON 文件，内容是标记记录的数组，每条包含 <code>kind</code>、<code>status</code>、<code>title</code>、
         <code>marked_on</code>，以及可选的 <code>original_title</code>、<code>year</code>、<code>creators</code>、
@@ -88,7 +88,7 @@ export default function Import() {
 
       {rows ? (
         <section className="mt-8 rounded-lg border border-line bg-card p-5 sm:p-6">
-          <h2 className="font-serif text-xl">共 {rows.length} 条</h2>
+          <h2 className="text-xl font-semibold">共 {rows.length} 条</h2>
           <ul className="mt-3 space-y-1 text-sm text-muted">
             {summary.map(({ kind, counts }) => (
               <li key={kind}>

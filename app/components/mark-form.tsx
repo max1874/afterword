@@ -55,7 +55,7 @@ export function MarkForm({
           rows={4}
           defaultValue={initial.comment ?? ""}
           placeholder="写点什么，或者留白。"
-          className="w-full font-serif leading-relaxed"
+          className="w-full leading-relaxed"
         />
       </label>
 

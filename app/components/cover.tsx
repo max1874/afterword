@@ -25,7 +25,7 @@ export function Cover({
           className="size-full object-cover"
         />
       ) : (
-        <div className="grid size-full place-items-center p-3 text-center font-serif text-sm text-muted">
+        <div className="grid size-full place-items-center p-3 text-center text-sm text-muted">
           {title}
         </div>
       )}

@@ -27,7 +27,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Login({ actionData }: Route.ComponentProps) {
   return (
     <Form method="post" className="mx-auto mt-16 max-w-xs space-y-4">
-      <h1 className="font-serif text-2xl">登录</h1>
+      <h1 className="text-2xl font-semibold">登录</h1>
       <input
         type="password"
         name="password"

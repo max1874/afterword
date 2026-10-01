@@ -100,7 +100,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
 
   return (
     <>
-      <h1 className="mb-6 font-serif text-3xl">记一笔</h1>
+      <h1 className="mb-6 text-3xl font-semibold">记一笔</h1>
 
       <Form method="get" className="mb-10">
         <div className="mb-4 flex flex-wrap gap-2">
@@ -153,7 +153,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
       ) : null}
 
       <details className="mt-12 rounded-lg border border-line bg-card p-5 sm:p-6" open={Boolean(query) && total === 0}>
-        <summary className="cursor-pointer select-none font-serif text-lg">搜不到？手动添加</summary>
+        <summary className="cursor-pointer select-none text-lg font-medium">搜不到？手动添加</summary>
         <ManualForm kind={kind} />
       </details>
 
@@ -177,7 +177,7 @@ function Candidate({ item }: { item: CandidateItem }) {
     <li className="flex gap-4 py-4">
       <Cover src={item.cover_url} title={item.title} className="w-16 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="font-serif text-lg leading-snug">{item.title}</p>
+        <p className="text-lg font-medium leading-snug">{item.title}</p>
         <p className="mt-0.5 text-sm text-muted">
           {[item.original_title, item.year, item.creators && `${creatorLabel(item.kind)} ${item.creators}`]
             .filter(Boolean)

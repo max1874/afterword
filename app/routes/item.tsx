@@ -63,7 +63,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
       <Cover src={item.cover} title={item.title} className="w-36 sm:w-full" />
 
       <div className="min-w-0">
-        <h1 className="font-serif text-3xl leading-tight sm:text-4xl">{item.title}</h1>
+        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{item.title}</h1>
         {item.original_title ? <p className="mt-2 text-muted">{item.original_title}</p> : null}
         <p className="mt-3 text-sm text-muted">
           {meta}
@@ -85,7 +85,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
               <Stars rating={item.rating ?? null} />
             </p>
             {item.comment ? (
-              <p className="mt-3 whitespace-pre-wrap font-serif text-lg leading-relaxed">{item.comment}</p>
+              <p className="mt-3 whitespace-pre-wrap text-lg leading-relaxed">{item.comment}</p>
             ) : null}
           </section>
         ) : null}
@@ -99,7 +99,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
 
         {owner ? (
           <section className="mt-10 rounded-lg border border-line bg-card p-5 sm:p-6">
-            <h2 className="mb-5 font-serif text-xl">{item.status ? "修改标记" : "标记这部作品"}</h2>
+            <h2 className="mb-5 text-xl font-semibold">{item.status ? "修改标记" : "标记这部作品"}</h2>
             {actionData && "error" in actionData ? (
               <p className="mb-4 text-sm text-seal">{actionData.error}</p>
             ) : null}

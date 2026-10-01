@@ -73,14 +73,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <section className="mb-10 border-b border-line pb-8">
-        <h1 className="font-serif text-3xl sm:text-4xl">{ownerName}的后记</h1>
+        <h1 className="text-3xl font-semibold sm:text-4xl">{ownerName}的后记</h1>
         <p className="mt-3 text-sm text-muted">
           看过 {total(counts, "screen", "done")} 部影视 · 读过 {total(counts, "book", "done")} 本书 ·
           读过 {total(counts, "comic", "done")} 部漫画 · 玩过 {total(counts, "game", "done")} 款游戏
         </p>
       </section>
 
-      <nav className="mb-3 flex flex-wrap gap-x-6 gap-y-2 font-serif text-lg">
+      <nav className="mb-3 flex flex-wrap gap-x-6 gap-y-2 text-lg font-medium">
         <FilterLink to={href(undefined, status)} active={!kind}>
           全部
         </FilterLink>
@@ -104,7 +104,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
       {items.length === 0 ? (
         <div className="py-20 text-center text-muted">
-          <p className="font-serif text-xl">这里还空着。</p>
+          <p className="text-xl">这里还空着。</p>
           {root?.owner ? (
             <Link to="/add" className="mt-4 inline-block text-seal underline underline-offset-4">
               记下第一部作品
@@ -114,7 +114,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       ) : (
         [...byYear].map(([year, group]) => (
           <section key={year} className="mb-12">
-            <h2 className="mb-5 flex items-baseline gap-3 font-serif">
+            <h2 className="mb-5 flex items-baseline gap-3 font-semibold">
               <span className="text-2xl">{year}</span>
               <span className="text-sm text-muted">{group.length} 条</span>
             </h2>

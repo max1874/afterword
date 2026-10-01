@@ -47,10 +47,10 @@ function Header() {
   return (
     <header className="mx-auto flex max-w-5xl items-center justify-between px-4 pt-8 pb-6 sm:px-6">
       <Link to="/" className="flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-[3px] bg-seal font-serif text-lg text-seal-ink">
+        <span className="grid size-9 place-items-center rounded-[3px] bg-seal text-lg font-semibold text-seal-ink">
           记
         </span>
-        <span className="font-serif text-2xl tracking-[0.2em]">后记</span>
+        <span className="text-2xl font-semibold tracking-[0.08em]">后记</span>
       </Link>
       {root?.owner ? (
         <nav className="flex items-center gap-4 text-sm">
@@ -112,7 +112,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   return (
     <main className="mx-auto max-w-5xl px-4 pt-16">
-      <h1 className="font-serif text-3xl">{message}</h1>
+      <h1 className="text-3xl font-semibold">{message}</h1>
       <p className="mt-3 text-muted">{details}</p>
       <p className="mt-6">
         <Link to="/" className="text-seal underline underline-offset-4">
