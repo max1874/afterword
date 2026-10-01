@@ -9,6 +9,11 @@
 	"name": "afterword",
 	"compatibility_date": "2026-09-26",
 	"main": "./workers/app.ts",
+	// Serve on your own domain (its zone must be in the same Cloudflare account).
+	// Remove `routes` and set `workers_dev` to true to use *.workers.dev instead.
+	"routes": [{ "pattern": "afterword.max1874.com", "custom_domain": true }],
+	"workers_dev": false,
+	"preview_urls": false,
 	"vars": {
 		// Name shown on your public page.
 		"OWNER_NAME": "Max"

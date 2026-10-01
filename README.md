@@ -38,7 +38,9 @@ npx wrangler secret put GOOGLE_BOOKS_API_KEY  # 可选
 npm run deploy
 ```
 
-在 `wrangler.jsonc` 的 `vars.OWNER_NAME` 里改成你的名字。
+在 `wrangler.jsonc` 里把 `vars.OWNER_NAME` 改成你的名字，把 `routes` 改成你自己的域名（域名需要托管在同一个 Cloudflare 账号下；没有域名就删掉 `routes`、把 `workers_dev` 改成 `true`）。
+
+作者的实例：https://afterword.max1874.com
 
 ## 条目数据源
 
