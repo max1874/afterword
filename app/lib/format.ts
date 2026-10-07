@@ -4,6 +4,12 @@ export function coverSrc(item: { cover_key: string | null; cover_url: string | n
   return item.cover_url;
 }
 
+/** Search-result thumbnail; Douban images go through the owner-only proxy. */
+export function previewSrc(url: string | null) {
+  if (url && /^https:\/\/[^/]+\.doubanio\.com\//.test(url)) return `/cover-proxy?url=${encodeURIComponent(url)}`;
+  return url;
+}
+
 /** Same-origin path to return to after login; anything else falls back to home. */
 export function safeNext(value: string | null) {
   return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";

@@ -9,4 +9,5 @@ export default [
   route("login", "routes/login.tsx"),
   route("logout", "routes/logout.tsx"),
   route("covers/:key", "routes/cover.ts"),
+  route("cover-proxy", "routes/cover-proxy.ts"),
 ] satisfies RouteConfig;

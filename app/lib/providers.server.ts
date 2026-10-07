@@ -5,6 +5,22 @@ import type { Kind } from "./kinds";
 
 export const USER_AGENT = "afterword/0.1 (https://github.com/max1874/afterword)";
 
+// Douban answers 418 to anything that does not look like a browser on douban.com,
+// for both its pages and its image hosts.
+export const DOUBAN_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
+  Referer: "https://www.douban.com/",
+};
+
+export function isDoubanImage(url: string) {
+  try {
+    return new URL(url).hostname.endsWith(".doubanio.com");
+  } catch {
+    return false;
+  }
+}
+
 export type SearchGroup = {
   source: string;
   label: string;
@@ -116,6 +132,59 @@ const bangumi: Provider = {
   },
 };
 
+// Douban: films, series and books, through the search suggestion endpoint
+// its own search box uses. Ids match Douban imports, so marked items show up.
+
+type DoubanSuggestion = {
+  id: string;
+  type: string;
+  title: string;
+  url: string;
+  year?: string;
+  sub_title?: string;
+  author_name?: string;
+  img?: string;
+  pic?: string;
+};
+
+const DOUBAN_SEARCH: Partial<Record<Kind, { host: string; type: string; prefix: string }>> = {
+  screen: { host: "movie.douban.com", type: "movie", prefix: "movie" },
+  book: { host: "book.douban.com", type: "b", prefix: "book" },
+};
+
+const douban: Provider = {
+  source: "douban",
+  label: "豆瓣",
+  kinds: ["screen", "book"],
+  enabled: () => true,
+  async search(kind, query) {
+    const target = DOUBAN_SEARCH[kind]!;
+    const data = await getJson<DoubanSuggestion[]>(
+      `https://${target.host}/j/subject_suggest?q=${encodeURIComponent(query)}`,
+      { headers: DOUBAN_HEADERS },
+    );
+    return data
+      .filter((s) => s.type === target.type)
+      .map((s) => {
+        const cover = (s.img ?? s.pic ?? "")
+          .replace("/s_ratio_poster/", "/m_ratio_poster/")
+          .replace("/view/subject/s/public/", "/view/subject/l/public/");
+        return {
+          kind,
+          title: s.title,
+          original_title: s.sub_title && s.sub_title !== s.title ? s.sub_title : null,
+          year: yearOf(s.year),
+          creators: s.author_name || null,
+          summary: null,
+          cover_url: cover || null,
+          source: "douban",
+          source_id: `${target.prefix}/${s.id}`,
+          source_url: s.url,
+        };
+      });
+  },
+};
+
 // TMDB: films and TV series. Needs an API key or v4 read access token.
 // https://developer.themoviedb.org/reference/search-multi
 
@@ -213,7 +282,7 @@ const googleBooks: Provider = {
   },
 };
 
-const PROVIDERS = [tmdb, googleBooks, bangumi];
+const PROVIDERS = [douban, tmdb, googleBooks, bangumi];
 
 export async function searchAll(kind: Kind, query: string): Promise<SearchGroup[]> {
   const providers = PROVIDERS.filter((p) => p.kinds.includes(kind) && p.enabled());

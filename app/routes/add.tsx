@@ -4,6 +4,7 @@ import type { Route } from "./+types/add";
 import { Cover } from "~/components/cover";
 import { findBySource, insertItem, markedSourceIds, type NewItem } from "~/lib/db.server";
 import { storeCover } from "~/lib/covers.server";
+import { previewSrc } from "~/lib/format";
 import { creatorLabel, isKind, KINDS, kindLabel, type Kind } from "~/lib/kinds";
 import { searchAll } from "~/lib/providers.server";
 import { requireOwner } from "~/lib/session.server";
@@ -175,7 +176,7 @@ function Candidate({ item }: { item: CandidateItem }) {
     navigation.state === "submitting" && navigation.formData?.get("source_id") === item.source_id;
   return (
     <li className="flex gap-4 py-4">
-      <Cover src={item.cover_url} title={item.title} className="w-16 shrink-0" />
+      <Cover src={previewSrc(item.cover_url)} title={item.title} className="w-16 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-lg font-semibold">{item.title}</p>
         <p className="mt-0.5 text-sm text-muted">

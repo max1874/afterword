@@ -1,18 +1,11 @@
 import { env } from "cloudflare:workers";
 
-import { USER_AGENT } from "./providers.server";
+import { DOUBAN_HEADERS, isDoubanImage, USER_AGENT } from "./providers.server";
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 
-const BROWSER_UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
-
-function coverHeaders(url: string): HeadersInit {
-  // Douban's image hosts answer 418 unless the request looks like a browser on douban.com.
-  if (new URL(url).hostname.endsWith(".doubanio.com")) {
-    return { "User-Agent": BROWSER_UA, Referer: "https://www.douban.com/" };
-  }
-  return { "User-Agent": USER_AGENT };
+export function coverHeaders(url: string): HeadersInit {
+  return isDoubanImage(url) ? DOUBAN_HEADERS : { "User-Agent": USER_AGENT };
 }
 
 /**
