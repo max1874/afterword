@@ -26,7 +26,7 @@ import {
   touchPasskey,
 } from "~/lib/accounts.server";
 import { safeNext } from "~/lib/format";
-import { createSession, getViewer, sameOrigin, saveCeremony, takeCeremony, type Ceremony } from "~/lib/session.server";
+import { getViewer, sameOrigin, saveCeremony, startSession, takeCeremony, type Ceremony } from "~/lib/session.server";
 
 /**
  * JSON endpoint for every passkey ceremony, for the web app and the iOS app.
@@ -43,6 +43,8 @@ type Body = {
   invite?: string;
   next?: string;
   ceremony?: string;
+  /** "app" for the iOS app: the session token comes back in the body instead of a cookie. */
+  client?: string;
   response?: RegistrationResponseJSON & AuthenticationResponseJSON;
 };
 
@@ -171,10 +173,11 @@ export async function action({ request }: Route.ActionArgs) {
       await touchPasskey(passkey.id, newCounter);
       const user = await getUser(passkey.user_id);
       const next = safeNext(body.next ?? null);
-      return ok({ next: next === "/" ? `/@${user!.handle}` : next }, [
-        clear,
-        await createSession(request, passkey.user_id),
-      ]);
+      const session = await startSession(request, passkey.user_id);
+      return ok(
+        { next: next === "/" ? `/@${user!.handle}` : next, ...(body.client === "app" ? { token: session.token } : {}) },
+        [clear, ...(body.client === "app" ? [] : [session.cookie])],
+      );
     }
 
     case "setup-options": {
@@ -269,7 +272,11 @@ export async function action({ request }: Route.ActionArgs) {
         }
       }
 
-      return ok({ codes, next: `/@${ceremony.handle}` }, [clear, await createSession(request, ceremony.userId)]);
+      const session = await startSession(request, ceremony.userId);
+      return ok(
+        { codes, next: `/@${ceremony.handle}`, ...(body.client === "app" ? { token: session.token } : {}) },
+        [clear, ...(body.client === "app" ? [] : [session.cookie])],
+      );
     }
 
     default:

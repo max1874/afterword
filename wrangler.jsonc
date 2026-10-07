@@ -28,6 +28,10 @@
 			"bucket_name": "afterword-covers"
 		}
 	],
+	"vars": {
+		// The iOS app as `<Team ID>.<bundle ID>`, for passkeys and links; leave empty without one.
+		"IOS_APP_ID": "4V5KP842PK.com.max1874.afterword"
+	},
 	"observability": {
 		"enabled": true
 	},

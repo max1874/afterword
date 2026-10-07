@@ -5,9 +5,10 @@ import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
 import { profileFromParam } from "~/lib/accounts.server";
+import { parseMark } from "~/lib/catalog.server";
 import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
 import { coverSrc, joinText } from "~/lib/format";
-import { creatorLabel, isStatus, kindLabel, statusLabel } from "~/lib/kinds";
+import { creatorLabel, kindLabel, statusLabel } from "~/lib/kinds";
 import { getViewer } from "~/lib/session.server";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -48,20 +49,10 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect(`/@${user.handle}`);
   }
 
-  const status = form.get("status");
-  const markedOn = String(form.get("marked_on") ?? "");
-  const rating = Number(form.get("rating"));
-  const comment = String(form.get("comment") ?? "").trim();
-  if (!isStatus(status) || !/^\d{4}-\d{2}-\d{2}$/.test(markedOn)) {
-    return data({ error: "状态或日期无效" }, { status: 400 });
-  }
+  const parsed = parseMark(form);
+  if ("error" in parsed) return data({ error: parsed.error }, { status: 400 });
   if (!(await getItem(params.id, user.id))) throw data(null, { status: 404 });
-  await saveMark(user.id, params.id, {
-    status,
-    rating: status !== "wish" && rating >= 1 && rating <= 5 ? Math.round(rating) : null,
-    comment: comment || null,
-    marked_on: markedOn,
-  });
+  await saveMark(user.id, params.id, parsed.mark);
   return redirect(`/@${user.handle}/items/${params.id}`);
 }
 

@@ -64,8 +64,26 @@ export async function handleTaken(handle: string, exceptUserId?: string) {
   return Boolean(row && row.id !== exceptUserId);
 }
 
-export async function updateProfile(userId: string, handle: string, name: string) {
-  await env.DB.prepare("UPDATE users SET handle = ?, name = ? WHERE id = ?").bind(handle, name, userId).run();
+/** Validates and saves a new handle and name. */
+export async function saveProfile(
+  userId: string,
+  fields: { get(name: string): unknown },
+): Promise<{ saved: { handle: string; name: string } } | { error: string }> {
+  const handle = checkHandle(String(fields.get("handle") ?? ""));
+  if ("error" in handle) return handle;
+  const name = checkName(String(fields.get("name") ?? ""));
+  if ("error" in name) return name;
+  if (await handleTaken(handle.handle, userId)) return { error: "这个用户名已经有人用了" };
+  try {
+    await env.DB.prepare("UPDATE users SET handle = ?, name = ? WHERE id = ?")
+      .bind(handle.handle, name.name, userId)
+      .run();
+  } catch (error) {
+    // Someone took the handle between the check and the update.
+    if (!String(error).includes("UNIQUE")) throw error;
+    return { error: "这个用户名已经有人用了" };
+  }
+  return { saved: { handle: handle.handle, name: name.name } };
 }
 
 // Passkeys

@@ -5,6 +5,8 @@ export default [
   route("add", "routes/add.tsx"),
   route("import", "routes/import.tsx"),
   route("api/import", "routes/api.import.ts"),
+  route("api/v1/*", "routes/api.v1.ts"),
+  route(".well-known/apple-app-site-association", "routes/apple-app-site-association.ts"),
   route("login", "routes/login.tsx"),
   route("login/recovery", "routes/login.recovery.tsx"),
   route("setup", "routes/setup.tsx"),

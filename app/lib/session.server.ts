@@ -29,7 +29,10 @@ export async function sha256Hex(value: string) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** The session token: `Authorization: Bearer` from the iOS app, else the browser's cookie. */
 async function sessionToken(request: Request): Promise<string | null> {
+  const bearer = request.headers.get("Authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  if (bearer) return bearer;
   const value = await sessionCookie.parse(request.headers.get("Cookie"));
   return typeof value === "string" && value ? value : null;
 }
@@ -76,8 +79,8 @@ export async function requireViewer(request: Request) {
   throw redirect(`/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
-/** Starts a session for the user and returns the Set-Cookie header value. */
-export async function createSession(request: Request, userId: string) {
+/** Starts a session; returns its token (for the app) and the Set-Cookie value (for browsers). */
+export async function startSession(request: Request, userId: string) {
   const token = base64url(crypto.getRandomValues(new Uint8Array(32)));
   await env.DB.prepare("INSERT INTO sessions (id, user_id, user_agent, expires_at) VALUES (?, ?, ?, ?)")
     .bind(
@@ -87,12 +90,22 @@ export async function createSession(request: Request, userId: string) {
       sqlTime(Date.now() + SESSION_DAYS * DAY_MS),
     )
     .run();
-  return sessionCookie.serialize(token);
+  return { token, cookie: await sessionCookie.serialize(token) };
+}
+
+/** Starts a session for the user and returns the Set-Cookie header value. */
+export async function createSession(request: Request, userId: string) {
+  return (await startSession(request, userId)).cookie;
+}
+
+/** Ends the session the request carries, if any. */
+export async function endSession(request: Request) {
+  const token = await sessionToken(request);
+  if (token) await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(await sha256Hex(token)).run();
 }
 
 export async function logOut(request: Request) {
-  const token = await sessionToken(request);
-  if (token) await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(await sha256Hex(token)).run();
+  await endSession(request);
   return redirect("/", { headers: { "Set-Cookie": await sessionCookie.serialize("", { maxAge: 0 }) } });
 }
 

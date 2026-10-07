@@ -1,9 +1,6 @@
 import type { Route } from "./+types/api.import";
-import { importRows } from "~/lib/import.server";
+import { IMPORT_BATCH_SIZE, importRows } from "~/lib/import.server";
 import { getViewer } from "~/lib/session.server";
-
-// Matches the batch size the import page sends.
-const IMPORT_BATCH_SIZE = 20;
 
 export async function action({ request }: Route.ActionArgs) {
   const viewer = await getViewer(request);

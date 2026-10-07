@@ -5,6 +5,9 @@ import { isKind, isStatus } from "./kinds";
 /** One record in an import file: an item plus the importer's mark on it. */
 export type ImportRow = NewItem & Mark & { marked_at: string | null };
 
+/** Rows per request; the import page sends batches of this size. */
+export const IMPORT_BATCH_SIZE = 20;
+
 export type ImportResult = { added: number; updated: number; errors: string[] };
 
 function str(value: unknown) {

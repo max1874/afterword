@@ -2,8 +2,8 @@ import { data, Form, Link, redirect, useNavigation } from "react-router";
 
 import type { Route } from "./+types/add";
 import { Cover } from "~/components/cover";
-import { findBySource, insertItem, markedSourceIds, type NewItem } from "~/lib/db.server";
-import { storeCover } from "~/lib/covers.server";
+import { addManualItem, pickItem } from "~/lib/catalog.server";
+import { markedSourceIds } from "~/lib/db.server";
 import { previewSrc } from "~/lib/format";
 import { creatorLabel, isKind, KINDS, kindLabel, type Kind } from "~/lib/kinds";
 import { searchAll } from "~/lib/providers.server";
@@ -37,56 +37,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { kind, query, groups: withMarks, handle: viewer.handle };
 }
 
-function text(form: FormData, name: string) {
-  const value = String(form.get(name) ?? "").trim();
-  return value || null;
-}
-
 export async function action({ request }: Route.ActionArgs) {
   const viewer = await requireViewer(request);
   const form = await request.formData();
   const kind = form.get("kind");
   if (!isKind(kind)) return data({ error: "类型无效" }, { status: 400 });
-
-  let item: NewItem;
-  if (form.get("intent") === "pick") {
-    const source = text(form, "source");
-    const sourceId = text(form, "source_id");
-    const query = text(form, "q");
-    if (!source || !sourceId || !query) return data({ error: "条目信息不完整" }, { status: 400 });
-    const existing = await findBySource(source, sourceId);
-    // Already in the catalog (maybe marked by someone else): mark it on your own page.
-    if (existing) return redirect(`/@${viewer.handle}/items/${existing.id}`);
-    // The catalog is shared, so its entries come from the source itself, never from fields the browser posts.
-    const found = (await searchAll(kind, query))
-      .find((group) => group.source === source)
-      ?.items.find((candidate) => candidate.source_id === sourceId);
-    if (!found) return data({ error: "没有在来源里找到这个条目，请重新搜索" }, { status: 400 });
-    item = found;
-  } else {
-    const title = text(form, "title");
-    if (!title) return data({ error: "请填写标题" }, { status: 400 });
-    const coverUrl = text(form, "cover_url");
-    if (coverUrl && !/^https?:\/\//.test(coverUrl)) {
-      return data({ error: "封面需要是 http(s) 链接" }, { status: 400 });
-    }
-    item = {
-      kind,
-      title,
-      original_title: text(form, "original_title"),
-      year: Number(form.get("year")) || null,
-      creators: text(form, "creators"),
-      summary: text(form, "summary"),
-      cover_url: coverUrl,
-      source: "manual",
-      source_id: null,
-      source_url: null,
-    };
-  }
-
-  const coverKey = await storeCover(item.cover_url);
-  const id = await insertItem(item, coverKey, viewer.id);
-  return redirect(`/@${viewer.handle}/items/${id}`);
+  const field = (name: string) => String(form.get(name) ?? "").trim() || null;
+  const result =
+    form.get("intent") === "pick"
+      ? await pickItem(viewer.id, kind, field("source"), field("source_id"), field("q"))
+      : await addManualItem(viewer.id, form);
+  if ("error" in result) return data({ error: result.error }, { status: 400 });
+  // Lands on your own page for the item, where you mark it.
+  return redirect(`/@${viewer.handle}/items/${result.id}`);
 }
 
 export default function Add({ loaderData, actionData }: Route.ComponentProps) {

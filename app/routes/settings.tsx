@@ -5,20 +5,17 @@ import { data, Form, useFetcher, useRevalidator, useSearchParams } from "react-r
 import type { Route } from "./+types/settings";
 import { RecoveryCodes } from "~/components/recovery-codes";
 import {
-  checkHandle,
-  checkName,
   createInvite,
   deleteOtherSessions,
   deletePasskey,
   deleteSession,
-  handleTaken,
   listInvites,
   listPasskeys,
   listSessions,
   recoveryCodeStatements,
   revokeInvite,
+  saveProfile,
   unusedRecoveryCodes,
-  updateProfile,
 } from "~/lib/accounts.server";
 import { passkeyMessage, registerPasskey, signal, userHandle } from "~/lib/passkey";
 import { requireViewer } from "~/lib/session.server";
@@ -52,20 +49,9 @@ export async function action({ request }: Route.ActionArgs) {
 
   switch (field("intent")) {
     case "profile": {
-      const handle = checkHandle(field("handle"));
-      if ("error" in handle) return data({ intent: "profile", error: handle.error }, { status: 400 });
-      const name = checkName(field("name"));
-      if ("error" in name) return data({ intent: "profile", error: name.error }, { status: 400 });
-      if (await handleTaken(handle.handle, viewer.id)) {
-        return data({ intent: "profile", error: "这个用户名已经有人用了" }, { status: 400 });
-      }
-      try {
-        await updateProfile(viewer.id, handle.handle, name.name);
-      } catch (error) {
-        if (!String(error).includes("UNIQUE")) throw error;
-        return data({ intent: "profile", error: "这个用户名已经有人用了" }, { status: 400 });
-      }
-      return { intent: "profile", saved: { handle: handle.handle, name: name.name } };
+      const result = await saveProfile(viewer.id, form);
+      if ("error" in result) return data({ intent: "profile", error: result.error }, { status: 400 });
+      return { intent: "profile", saved: result.saved };
     }
     case "delete-passkey": {
       if (!(await deletePasskey(viewer.id, field("id")))) {
