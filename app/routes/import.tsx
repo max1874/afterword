@@ -3,7 +3,7 @@ import { Link } from "react-router";
 
 import type { Route } from "./+types/import";
 import { isKind, isStatus, KINDS, kindLabel, statusLabel } from "~/lib/kinds";
-import { requireOwner } from "~/lib/session.server";
+import { requireViewer } from "~/lib/session.server";
 
 const BATCH_SIZE = 20;
 
@@ -12,8 +12,8 @@ export function meta() {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireOwner(request);
-  return null;
+  const viewer = await requireViewer(request);
+  return { handle: viewer.handle };
 }
 
 type Progress = { done: number; added: number; updated: number; errors: string[] };

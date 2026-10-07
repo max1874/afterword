@@ -1,9 +1,9 @@
 # Copy to .dev.vars for local development. In production set these with
 # `npx wrangler secret put <NAME>`.
 
-# Password for the owner account.
+# Proves you are the owner once, at /setup, before your first passkey exists.
 OWNER_PASSWORD=change-me
-# Random string used to sign the login cookie, e.g. `openssl rand -hex 32`.
+# Random string used to sign the short-lived passkey challenge cookie, e.g. `openssl rand -hex 32`.
 SESSION_SECRET=replace-with-a-long-random-string
 
 # Optional. Enables film & series search via TMDB (API key or v4 read token).

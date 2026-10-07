@@ -7,14 +7,14 @@ import { storeCover } from "~/lib/covers.server";
 import { previewSrc } from "~/lib/format";
 import { creatorLabel, isKind, KINDS, kindLabel, type Kind } from "~/lib/kinds";
 import { searchAll } from "~/lib/providers.server";
-import { requireOwner } from "~/lib/session.server";
+import { requireViewer } from "~/lib/session.server";
 
 export function meta() {
   return [{ title: "记一笔 · 后记" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireOwner(request);
+  const viewer = await requireViewer(request);
   const params = new URL(request.url).searchParams;
   const kind: Kind = isKind(params.get("kind")) ? (params.get("kind") as Kind) : "screen";
   const query = params.get("q")?.trim() ?? "";
@@ -24,6 +24,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const withMarks = await Promise.all(
     groups.map(async (group) => {
       const existing = await markedSourceIds(
+        viewer.id,
         group.source,
         group.items.map((i) => i.source_id!),
       );
@@ -33,7 +34,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       };
     }),
   );
-  return { kind, query, groups: withMarks };
+  return { kind, query, groups: withMarks, handle: viewer.handle };
 }
 
 function text(form: FormData, name: string) {
@@ -42,7 +43,7 @@ function text(form: FormData, name: string) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  await requireOwner(request);
+  const viewer = await requireViewer(request);
   const form = await request.formData();
   const kind = form.get("kind");
   if (!isKind(kind)) return data({ error: "类型无效" }, { status: 400 });
@@ -54,7 +55,8 @@ export async function action({ request }: Route.ActionArgs) {
     const title = text(form, "title");
     if (!source || !sourceId || !title) return data({ error: "条目信息不完整" }, { status: 400 });
     const existing = await findBySource(source, sourceId);
-    if (existing) return redirect(`/items/${existing.id}`);
+    // Already in the catalog (maybe marked by someone else): mark it on your own page.
+    if (existing) return redirect(`/@${viewer.handle}/items/${existing.id}`);
     item = {
       kind,
       title,
@@ -89,12 +91,12 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   const coverKey = await storeCover(item.cover_url);
-  const id = await insertItem(item, coverKey);
-  return redirect(`/items/${id}`);
+  const id = await insertItem(item, coverKey, viewer.id);
+  return redirect(`/@${viewer.handle}/items/${id}`);
 }
 
 export default function Add({ loaderData, actionData }: Route.ComponentProps) {
-  const { kind, query, groups } = loaderData;
+  const { kind, query, groups, handle } = loaderData;
   const navigation = useNavigation();
   const searching = navigation.state === "loading" && navigation.location?.pathname === "/add";
   const total = groups.reduce((sum, g) => sum + g.items.length, 0);
@@ -144,7 +146,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
               </h2>
               <ul className="divide-y divide-line border-y border-line">
                 {group.items.map((item) => (
-                  <Candidate key={item.source_id} item={item} />
+                  <Candidate key={item.source_id} item={item} handle={handle} />
                 ))}
               </ul>
             </div>
@@ -170,7 +172,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
 
 type CandidateItem = Route.ComponentProps["loaderData"]["groups"][number]["items"][number];
 
-function Candidate({ item }: { item: CandidateItem }) {
+function Candidate({ item, handle }: { item: CandidateItem; handle: string }) {
   const navigation = useNavigation();
   const adding =
     navigation.state === "submitting" && navigation.formData?.get("source_id") === item.source_id;
@@ -188,7 +190,7 @@ function Candidate({ item }: { item: CandidateItem }) {
       </div>
       <div className="shrink-0 self-center">
         {item.existingId ? (
-          <Link to={`/items/${item.existingId}`} className="text-sm text-muted underline underline-offset-4 hover:text-ink">
+          <Link to={`/@${handle}/items/${item.existingId}`} className="text-sm text-muted underline underline-offset-4 hover:text-ink">
             已标记
           </Link>
         ) : (

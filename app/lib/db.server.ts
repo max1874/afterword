@@ -39,11 +39,11 @@ export function today() {
   return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 }
 
-type MarkFilter = { kind?: Kind; status?: Status };
+type MarkFilter = { userId: string; kind?: Kind; status?: Status };
 
 function whereClause(filter: MarkFilter) {
-  const where: string[] = [];
-  const params: unknown[] = [];
+  const where = ["m.user_id = ?"];
+  const params: unknown[] = [filter.userId];
   if (filter.kind) {
     where.push("i.kind = ?");
     params.push(filter.kind);
@@ -52,7 +52,7 @@ function whereClause(filter: MarkFilter) {
     where.push("m.status = ?");
     params.push(filter.status);
   }
-  return { clause: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
+  return { clause: `WHERE ${where.join(" AND ")}`, params };
 }
 
 /** Marks per year for the filter, so year headings stay right while pages load. */
@@ -83,22 +83,26 @@ export async function listMarked(filter: MarkFilter & { page: number }) {
   return { items: results.slice(0, PAGE_SIZE), hasMore: results.length > PAGE_SIZE };
 }
 
-export async function countByKindAndStatus() {
+export async function countByKindAndStatus(userId: string) {
   const { results } = await env.DB.prepare(
     `SELECT i.kind, m.status, COUNT(*) AS n
      FROM marks m JOIN items i ON i.id = m.item_id
+     WHERE m.user_id = ?
      GROUP BY i.kind, m.status`,
-  ).all<{ kind: Kind; status: Status; n: number }>();
+  )
+    .bind(userId)
+    .all<{ kind: Kind; status: Status; n: number }>();
   return results;
 }
 
-export async function getItem(id: string) {
+/** An item with the given person's mark on it, if any. */
+export async function getItem(id: string, userId: string) {
   return env.DB.prepare(
     `SELECT i.*, m.status, m.rating, m.comment, m.marked_on
-     FROM items i LEFT JOIN marks m ON m.item_id = i.id
+     FROM items i LEFT JOIN marks m ON m.item_id = i.id AND m.user_id = ?
      WHERE i.id = ?`,
   )
-    .bind(id)
+    .bind(userId, id)
     .first<Item & Partial<Mark>>();
 }
 
@@ -112,24 +116,24 @@ export async function setCoverKey(id: string, coverKey: string) {
   await env.DB.prepare("UPDATE items SET cover_key = ? WHERE id = ?").bind(coverKey, id).run();
 }
 
-/** Marks already recorded for the given source ids, so search results can show them. */
-export async function markedSourceIds(source: string, sourceIds: string[]) {
+/** Items the person has already marked among the given source ids, so search results can show them. */
+export async function markedSourceIds(userId: string, source: string, sourceIds: string[]) {
   if (sourceIds.length === 0) return new Map<string, string>();
   const { results } = await env.DB.prepare(
-    `SELECT source_id, id FROM items
-     WHERE source = ? AND source_id IN (${sourceIds.map(() => "?").join(",")})`,
+    `SELECT i.source_id, i.id FROM items i JOIN marks m ON m.item_id = i.id AND m.user_id = ?
+     WHERE i.source = ? AND i.source_id IN (${sourceIds.map(() => "?").join(",")})`,
   )
-    .bind(source, ...sourceIds)
+    .bind(userId, source, ...sourceIds)
     .all<{ source_id: string; id: string }>();
   return new Map(results.map((r) => [r.source_id, r.id]));
 }
 
-export async function insertItem(item: NewItem, coverKey: string | null) {
+export async function insertItem(item: NewItem, coverKey: string | null, createdBy: string) {
   const id = newId();
   await env.DB.prepare(
     `INSERT INTO items (id, kind, title, original_title, year, creators, summary,
-       cover_key, cover_url, source, source_id, source_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       cover_key, cover_url, source, source_id, source_url, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -144,6 +148,7 @@ export async function insertItem(item: NewItem, coverKey: string | null) {
       item.source,
       item.source_id,
       item.source_url,
+      createdBy,
     )
     .run();
   return id;
@@ -153,29 +158,35 @@ export async function insertItem(item: NewItem, coverKey: string | null) {
  * Saves a mark. `markedAt` orders marks within the same day; imports pass the
  * source's order, edits keep the existing position unless the date changes.
  */
-export async function saveMark(itemId: string, mark: Mark, markedAt?: string) {
+export async function saveMark(userId: string, itemId: string, mark: Mark, markedAt?: string) {
   const now = new Date().toISOString().replace("T", " ").slice(0, 19);
   await env.DB.prepare(
-    `INSERT INTO marks (item_id, status, rating, comment, marked_on, marked_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-     ON CONFLICT (item_id) DO UPDATE SET
+    `INSERT INTO marks (item_id, status, rating, comment, marked_on, marked_at, updated_at, user_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9)
+     ON CONFLICT (user_id, item_id) DO UPDATE SET
        status = excluded.status, rating = excluded.rating, comment = excluded.comment,
        marked_on = excluded.marked_on,
        marked_at = CASE WHEN ?8 = 0 AND marks.marked_on = excluded.marked_on
          THEN marks.marked_at ELSE excluded.marked_at END,
        updated_at = excluded.updated_at`,
   )
-    .bind(itemId, mark.status, mark.rating, mark.comment, mark.marked_on, markedAt ?? now, now, markedAt ? 1 : 0)
+    .bind(itemId, mark.status, mark.rating, mark.comment, mark.marked_on, markedAt ?? now, now, markedAt ? 1 : 0, userId)
     .run();
 }
 
-export async function deleteItem(id: string) {
-  const item = await env.DB.prepare("SELECT cover_key FROM items WHERE id = ?")
-    .bind(id)
+/**
+ * Removes the person's mark. An item nobody else has marked leaves the
+ * catalog with its cover, as before accounts, so the catalog only holds
+ * works someone cares about.
+ */
+export async function deleteMark(userId: string, itemId: string) {
+  await env.DB.prepare("DELETE FROM marks WHERE user_id = ? AND item_id = ?").bind(userId, itemId).run();
+  const orphan = await env.DB.prepare(
+    "SELECT cover_key FROM items i WHERE id = ? AND NOT EXISTS (SELECT 1 FROM marks WHERE item_id = i.id)",
+  )
+    .bind(itemId)
     .first<{ cover_key: string | null }>();
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM marks WHERE item_id = ?").bind(id),
-    env.DB.prepare("DELETE FROM items WHERE id = ?").bind(id),
-  ]);
-  if (item?.cover_key) await env.COVERS.delete(item.cover_key);
+  if (!orphan) return;
+  await env.DB.prepare("DELETE FROM items WHERE id = ?").bind(itemId).run();
+  if (orphan.cover_key) await env.COVERS.delete(orphan.cover_key);
 }

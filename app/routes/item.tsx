@@ -4,10 +4,11 @@ import type { Route } from "./+types/item";
 import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
-import { deleteItem, getItem, saveMark, today } from "~/lib/db.server";
-import { coverSrc } from "~/lib/format";
+import { profileFromParam } from "~/lib/accounts.server";
+import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
+import { coverSrc, joinText } from "~/lib/format";
 import { creatorLabel, isStatus, kindLabel, statusLabel } from "~/lib/kinds";
-import { isOwner, requireOwner } from "~/lib/session.server";
+import { getViewer } from "~/lib/session.server";
 
 const SOURCE_LABELS: Record<string, string> = {
   bangumi: "Bangumi",
@@ -21,18 +22,30 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const item = await getItem(params.id);
-  if (!item) throw data(null, { status: 404 });
-  return { item: { ...item, cover: coverSrc(item) }, owner: await isOwner(request), today: today() };
+  const user = await profileFromParam(params.profile);
+  const viewer = await getViewer(request);
+  const mine = viewer?.id === user.id;
+  const item = await getItem(params.id, user.id);
+  // Someone else's page only shows what they marked; your own also offers unmarked items to mark.
+  if (!item || (!mine && !item.status)) throw data(null, { status: 404 });
+  return {
+    item: { ...item, cover: coverSrc(item) },
+    profile: { handle: user.handle, name: user.name },
+    mine,
+    viewerHandle: viewer?.handle ?? null,
+    today: today(),
+  };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  await requireOwner(request);
+  const user = await profileFromParam(params.profile);
+  const viewer = await getViewer(request);
+  if (viewer?.id !== user.id) throw data(null, { status: 403 });
   const form = await request.formData();
 
   if (form.get("intent") === "delete") {
-    await deleteItem(params.id);
-    return redirect("/");
+    await deleteMark(user.id, params.id);
+    return redirect(`/@${user.handle}`);
   }
 
   const status = form.get("status");
@@ -42,18 +55,18 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (!isStatus(status) || !/^\d{4}-\d{2}-\d{2}$/.test(markedOn)) {
     return data({ error: "状态或日期无效" }, { status: 400 });
   }
-  if (!(await getItem(params.id))) throw data(null, { status: 404 });
-  await saveMark(params.id, {
+  if (!(await getItem(params.id, user.id))) throw data(null, { status: 404 });
+  await saveMark(user.id, params.id, {
     status,
     rating: status !== "wish" && rating >= 1 && rating <= 5 ? Math.round(rating) : null,
     comment: comment || null,
     marked_on: markedOn,
   });
-  return redirect(`/items/${params.id}`);
+  return redirect(`/@${user.handle}/items/${params.id}`);
 }
 
 export default function ItemPage({ loaderData, actionData }: Route.ComponentProps) {
-  const { item, owner, today } = loaderData;
+  const { item, profile, mine, viewerHandle, today } = loaderData;
   const meta = [kindLabel(item.kind), item.year, item.creators && `${creatorLabel(item.kind)} ${item.creators}`]
     .filter(Boolean)
     .join(" · ");
@@ -79,6 +92,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
 
         {item.status ? (
           <section className="mt-8 border-l-2 border-seal pl-5">
+            {mine ? null : <p className="mb-2 text-sm font-semibold">{profile.name}</p>}
             <p className="flex flex-wrap items-center gap-3 text-sm text-muted">
               <span>{item.marked_on}</span>
               <span className="text-ink">{statusLabel(item.status, item.kind)}</span>
@@ -97,7 +111,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
           </details>
         ) : null}
 
-        {owner ? (
+        {mine ? (
           <section className="mt-10 rounded-lg border border-line bg-card p-5 sm:p-6">
             <h2 className="mb-5 text-xl font-semibold">{item.status ? "修改标记" : "标记这部作品"}</h2>
             {actionData && "error" in actionData ? (
@@ -108,7 +122,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
               method="post"
               className="mt-6 border-t border-line pt-4"
               onSubmit={(event) => {
-                if (!window.confirm("删除这条标记？作品信息也会一起删除。")) event.preventDefault();
+                if (!window.confirm("删除这条标记？")) event.preventDefault();
               }}
             >
               <input type="hidden" name="intent" value="delete" />
@@ -117,9 +131,20 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
           </section>
         ) : null}
 
+        {!mine && viewerHandle ? (
+          <p className="mt-8 text-sm">
+            <Link
+              to={`/@${viewerHandle}/items/${item.id}`}
+              className="text-seal underline underline-offset-4"
+            >
+              我的标记
+            </Link>
+          </p>
+        ) : null}
+
         <p className="mt-10 text-sm">
-          <Link to="/" className="text-muted hover:text-ink">
-            ← 返回
+          <Link to={`/@${profile.handle}`} className="text-muted hover:text-ink">
+            ← {mine ? "返回" : joinText(profile.name, "的后记")}
           </Link>
         </p>
       </div>

@@ -14,10 +14,6 @@
 	"routes": [{ "pattern": "afterword.max1874.com", "custom_domain": true }],
 	"workers_dev": false,
 	"preview_urls": false,
-	"vars": {
-		// Name shown on your public page.
-		"OWNER_NAME": "Max"
-	},
 	"d1_databases": [
 		{
 			"binding": "DB",

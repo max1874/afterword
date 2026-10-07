@@ -4,7 +4,7 @@ export function coverSrc(item: { cover_key: string | null; cover_url: string | n
   return item.cover_url;
 }
 
-/** Search-result thumbnail; Douban images go through the owner-only proxy. */
+/** Search-result thumbnail; Douban images go through the signed-in proxy. */
 export function previewSrc(url: string | null) {
   if (url && /^https:\/\/[^/]+\.doubanio\.com\//.test(url)) return `/cover-proxy?url=${encodeURIComponent(url)}`;
   return url;

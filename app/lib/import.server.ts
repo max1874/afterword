@@ -1,8 +1,8 @@
 import { storeCover } from "./covers.server";
-import { findBySource, insertItem, saveMark, setCoverKey, type Mark, type NewItem } from "./db.server";
+import { findBySource, getItem, insertItem, saveMark, setCoverKey, type Mark, type NewItem } from "./db.server";
 import { isKind, isStatus } from "./kinds";
 
-/** One record in an import file: an item plus your mark on it. */
+/** One record in an import file: an item plus the importer's mark on it. */
 export type ImportRow = NewItem & Mark & { marked_at: string | null };
 
 export type ImportResult = { added: number; updated: number; errors: string[] };
@@ -50,7 +50,7 @@ function parseRow(raw: unknown): ImportRow | string {
  * matched by source id, so re-running an import updates marks instead of
  * duplicating items.
  */
-export async function importRows(rows: unknown[]): Promise<ImportResult> {
+export async function importRows(userId: string, rows: unknown[]): Promise<ImportResult> {
   const result: ImportResult = { added: 0, updated: 0, errors: [] };
   await Promise.all(
     rows.map(async (raw) => {
@@ -63,14 +63,16 @@ export async function importRows(rows: unknown[]): Promise<ImportResult> {
       try {
         const existing = item.source_id ? await findBySource(item.source, item.source_id) : null;
         let id = existing?.id;
-        if (!id) id = await insertItem(item, await storeCover(item.cover_url));
+        if (!id) id = await insertItem(item, await storeCover(item.cover_url), userId);
         else if (!existing?.cover_key && item.cover_url) {
           // A cover that failed to copy last time gets another try on re-import.
           const coverKey = await storeCover(item.cover_url);
           if (coverKey) await setCoverKey(id, coverKey);
         }
-        await saveMark(id, { status, rating, comment, marked_on }, marked_at ?? undefined);
-        existing ? result.updated++ : result.added++;
+        // Counted per person: an item someone else marked first is still new to the importer.
+        const hadMark = existing ? Boolean((await getItem(id, userId))?.status) : false;
+        await saveMark(userId, id, { status, rating, comment, marked_on }, marked_at ?? undefined);
+        hadMark ? result.updated++ : result.added++;
       } catch (error) {
         result.errors.push(`${item.title}：${error instanceof Error ? error.message : String(error)}`);
       }

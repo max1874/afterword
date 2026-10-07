@@ -1,6 +1,4 @@
-import { env } from "cloudflare:workers";
 import {
-  Form,
   isRouteErrorResponse,
   Link,
   Links,
@@ -13,10 +11,11 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
-import { isOwner } from "./lib/session.server";
+import { getViewer } from "./lib/session.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return { owner: await isOwner(request), ownerName: env.OWNER_NAME || "我" };
+  const viewer = await getViewer(request);
+  return { viewer: viewer ? { handle: viewer.handle, name: viewer.name } : null };
 }
 
 export function useRoot() {
@@ -52,7 +51,7 @@ function Header() {
         </span>
         <span className="text-2xl font-semibold">后记</span>
       </Link>
-      {root?.owner ? (
+      {root?.viewer ? (
         <nav className="flex items-center gap-4 text-sm">
           <Link
             to="/add"
@@ -60,9 +59,12 @@ function Header() {
           >
             ＋ 记一笔
           </Link>
-          <Form method="post" action="/logout">
-            <button className="text-muted hover:text-ink">退出</button>
-          </Form>
+          <Link to={`/@${root.viewer.handle}`} className="text-muted hover:text-ink">
+            {root.viewer.name}
+          </Link>
+          <Link to="/settings" className="text-muted hover:text-ink">
+            设置
+          </Link>
         </nav>
       ) : null}
     </header>
@@ -88,7 +90,7 @@ function Footer() {
       <a href="https://github.com/max1874/afterword" className="hover:text-ink">
         后记 Afterword · 开源
       </a>
-      {root?.owner ? null : (
+      {root?.viewer ? null : (
         <Link to="/login" className="hover:text-ink">
           登录
         </Link>
