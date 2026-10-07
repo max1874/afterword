@@ -61,6 +61,11 @@ body {
   @apply bg-paper text-ink font-sans text-base antialiased;
 }
 
+html {
+  /* Space between Chinese and Latin text inside titles from sources; UI strings add it explicitly. */
+  text-autospace: normal;
+}
+
 input,
 textarea,
 select {

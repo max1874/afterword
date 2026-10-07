@@ -6,7 +6,7 @@ import type { Route } from "./+types/home";
 import { Cover } from "~/components/cover";
 import { Stars } from "~/components/stars";
 import { countByKindAndStatus, countByYear, listMarked } from "~/lib/db.server";
-import { coverSrc } from "~/lib/format";
+import { coverSrc, joinText } from "~/lib/format";
 import {
   genericStatusLabel,
   isKind,
@@ -21,7 +21,7 @@ import {
 import { useRoot } from "~/root";
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: `${loaderData?.ownerName ?? ""}的后记` }];
+  return [{ title: joinText(loaderData?.ownerName ?? "", "的后记") }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -73,7 +73,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <section className="mb-10 border-b border-line pb-8">
-        <h1 className="text-3xl font-semibold sm:text-4xl">{ownerName}的后记</h1>
+        <h1 className="text-3xl font-semibold sm:text-4xl">{joinText(ownerName, "的后记")}</h1>
         <p className="mt-3 text-xl font-semibold text-muted">
           看过 {total(counts, "screen", "done")} 部影视 · 读过 {total(counts, "book", "done")} 本书 ·
           读过 {total(counts, "comic", "done")} 部漫画 · 玩过 {total(counts, "game", "done")} 款游戏
@@ -178,9 +178,12 @@ function Timeline({ first }: { first: Page }) {
               <li key={item.id}>
                 <Link to={`/items/${item.id}`} className="group block">
                   <Cover src={item.cover} title={item.title} className="transition group-hover:-translate-y-0.5" />
-                  <p className="mt-2 line-clamp-2 text-sm font-semibold">{item.title}</p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-                    {item.rating ? <Stars rating={item.rating} /> : <span>{statusLabel(item.status, item.kind)}</span>}
+                  {/* Two lines reserved so the meta line aligns across a row. */}
+                  <p className="mt-2 line-clamp-2 h-[3em] text-sm font-semibold">{item.title}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                    <span>{item.marked_on.slice(5)}</span>
+                    {status ? null : <span>· {statusLabel(item.status, item.kind)}</span>}
+                    {item.rating ? <Stars rating={item.rating} /> : null}
                   </p>
                 </Link>
               </li>

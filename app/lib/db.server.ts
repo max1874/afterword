@@ -75,7 +75,7 @@ export async function listMarked(filter: MarkFilter & { page: number }) {
     `SELECT i.*, m.status, m.rating, m.comment, m.marked_on
      FROM marks m JOIN items i ON i.id = m.item_id
      ${clause}
-     ORDER BY m.marked_on DESC, m.updated_at DESC
+     ORDER BY m.marked_on DESC, m.marked_at DESC
      LIMIT ? OFFSET ?`,
   )
     .bind(...params, PAGE_SIZE + 1, (filter.page - 1) * PAGE_SIZE)
@@ -149,15 +149,23 @@ export async function insertItem(item: NewItem, coverKey: string | null) {
   return id;
 }
 
-export async function saveMark(itemId: string, mark: Mark) {
+/**
+ * Saves a mark. `markedAt` orders marks within the same day; imports pass the
+ * source's order, edits keep the existing position unless the date changes.
+ */
+export async function saveMark(itemId: string, mark: Mark, markedAt?: string) {
+  const now = new Date().toISOString().replace("T", " ").slice(0, 19);
   await env.DB.prepare(
-    `INSERT INTO marks (item_id, status, rating, comment, marked_on, updated_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO marks (item_id, status, rating, comment, marked_on, marked_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
      ON CONFLICT (item_id) DO UPDATE SET
        status = excluded.status, rating = excluded.rating, comment = excluded.comment,
-       marked_on = excluded.marked_on, updated_at = excluded.updated_at`,
+       marked_on = excluded.marked_on,
+       marked_at = CASE WHEN ?8 = 0 AND marks.marked_on = excluded.marked_on
+         THEN marks.marked_at ELSE excluded.marked_at END,
+       updated_at = excluded.updated_at`,
   )
-    .bind(itemId, mark.status, mark.rating, mark.comment, mark.marked_on)
+    .bind(itemId, mark.status, mark.rating, mark.comment, mark.marked_on, markedAt ?? now, now, markedAt ? 1 : 0)
     .run();
 }
 

@@ -3,7 +3,7 @@ import { findBySource, insertItem, saveMark, setCoverKey, type Mark, type NewIte
 import { isKind, isStatus } from "./kinds";
 
 /** One record in an import file: an item plus your mark on it. */
-export type ImportRow = NewItem & Mark;
+export type ImportRow = NewItem & Mark & { marked_at: string | null };
 
 export type ImportResult = { added: number; updated: number; errors: string[] };
 
@@ -20,6 +20,10 @@ function parseRow(raw: unknown): ImportRow | string {
   if (!isStatus(r.status)) return `${title}：status 无效`;
   const markedOn = str(r.marked_on);
   if (!markedOn || !/^\d{4}-\d{2}-\d{2}$/.test(markedOn)) return `${title}：marked_on 需要是 YYYY-MM-DD`;
+  const markedAt = str(r.marked_at)?.replace("T", " ") ?? null;
+  if (markedAt && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(markedAt)) {
+    return `${title}：marked_at 需要是 YYYY-MM-DD HH:MM:SS`;
+  }
   const rating = Number(r.rating);
   const coverUrl = str(r.cover_url);
   return {
@@ -37,6 +41,7 @@ function parseRow(raw: unknown): ImportRow | string {
     rating: r.status !== "wish" && rating >= 1 && rating <= 5 ? Math.round(rating) : null,
     comment: str(r.comment),
     marked_on: markedOn,
+    marked_at: markedAt,
   };
 }
 
@@ -54,7 +59,7 @@ export async function importRows(rows: unknown[]): Promise<ImportResult> {
         result.errors.push(row);
         return;
       }
-      const { status, rating, comment, marked_on, ...item } = row;
+      const { status, rating, comment, marked_on, marked_at, ...item } = row;
       try {
         const existing = item.source_id ? await findBySource(item.source, item.source_id) : null;
         let id = existing?.id;
@@ -64,7 +69,7 @@ export async function importRows(rows: unknown[]): Promise<ImportResult> {
           const coverKey = await storeCover(item.cover_url);
           if (coverKey) await setCoverKey(id, coverKey);
         }
-        await saveMark(id, { status, rating, comment, marked_on });
+        await saveMark(id, { status, rating, comment, marked_on }, marked_at ?? undefined);
         existing ? result.updated++ : result.added++;
       } catch (error) {
         result.errors.push(`${item.title}：${error instanceof Error ? error.message : String(error)}`);
