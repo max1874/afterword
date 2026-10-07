@@ -108,11 +108,11 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
               method="post"
               className="mt-6 border-t border-line pt-4"
               onSubmit={(event) => {
-                if (!window.confirm("删除这条记录？标记和条目都会删除。")) event.preventDefault();
+                if (!window.confirm("删除这条标记？作品信息也会一起删除。")) event.preventDefault();
               }}
             >
               <input type="hidden" name="intent" value="delete" />
-              <button className="text-sm text-muted hover:text-seal">删除这条记录</button>
+              <button className="text-sm text-muted hover:text-seal">删除这条标记</button>
             </Form>
           </section>
         ) : null}

@@ -71,7 +71,7 @@ export default function Import() {
     <>
       <h1 className="mb-3 text-3xl font-semibold">导入</h1>
       <p className="mb-8 max-w-2xl text-sm text-muted">
-        选择一个 JSON 文件，内容是标记记录的数组，每条包含 <code>kind</code>、<code>status</code>、<code>title</code>、
+        选择一个 JSON 文件，内容是标记的数组，每条包含 <code>kind</code>、<code>status</code>、<code>title</code>、
         <code>marked_on</code>，以及可选的 <code>original_title</code>、<code>year</code>、<code>creators</code>、
         <code>cover_url</code>、<code>rating</code>、<code>comment</code>、<code>source</code>、<code>source_id</code>、
         <code>source_url</code>。同一来源的条目按 <code>source_id</code> 匹配，重复导入只会更新标记。

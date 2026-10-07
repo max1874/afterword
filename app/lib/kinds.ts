@@ -35,5 +35,5 @@ export function statusLabel(status: Status, kind?: Kind) {
 
 /** Status label when no single kind applies. */
 export function genericStatusLabel(status: Status) {
-  return { done: "已完成", doing: "进行中", wish: "想要" }[status];
+  return { done: "已完成", doing: "进行中", wish: "计划中" }[status];
 }

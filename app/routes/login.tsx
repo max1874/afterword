@@ -38,7 +38,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
         className="w-full"
       />
       {actionData?.error ? <p className="text-sm text-seal">{actionData.error}</p> : null}
-      <button className="w-full rounded-md bg-ink py-2 text-paper transition hover:opacity-85">进入</button>
+      <button className="w-full rounded-md bg-ink py-2 text-paper transition hover:opacity-85">登录</button>
     </Form>
   );
 }

@@ -149,7 +149,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
               </ul>
             </div>
           ))}
-          {total === 0 ? <p className="text-muted">没有搜到「{query}」。试试原名，或者在下面手动添加。</p> : null}
+          {total === 0 ? <p className="text-muted">没有搜到“{query}”。试试原名，或者在下面手动添加。</p> : null}
         </section>
       ) : null}
 
@@ -159,7 +159,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
       </details>
 
       <p className="mt-6 text-sm text-muted">
-        有一批旧记录？
+        有一批旧标记？
         <Link to="/import" className="ml-1 underline underline-offset-4 hover:text-ink">
           从文件导入
         </Link>
@@ -189,7 +189,7 @@ function Candidate({ item }: { item: CandidateItem }) {
       <div className="shrink-0 self-center">
         {item.existingId ? (
           <Link to={`/items/${item.existingId}`} className="text-sm text-muted underline underline-offset-4 hover:text-ink">
-            已记录
+            已标记
           </Link>
         ) : (
           <Form method="post">
@@ -203,7 +203,7 @@ function Candidate({ item }: { item: CandidateItem }) {
               disabled={adding}
               className="rounded-full border border-seal px-4 py-1.5 text-sm text-seal transition hover:bg-seal hover:text-seal-ink disabled:opacity-60"
             >
-              {adding ? "记录中…" : "标记"}
+              {adding ? "标记中…" : "标记"}
             </button>
           </Form>
         )}

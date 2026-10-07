@@ -194,7 +194,7 @@ function Timeline({ first }: { first: Page }) {
       <div ref={sentinel} className="py-6 text-center text-sm text-muted">
         {hasMore ? (
           <button onClick={loadMore} disabled={loading} className="hover:text-ink">
-            {loading ? "加载中…" : "加载更早的记录"}
+            {loading ? "加载中…" : "加载更早的标记"}
           </button>
         ) : (
           <span>没有更早的了</span>
