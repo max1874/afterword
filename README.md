@@ -51,6 +51,12 @@ npm run deploy
 | 漫画 | Bangumi | — |
 | 游戏 | Bangumi | — |
 
+## iOS App
+
+`ios/Afterword` 是 SwiftUI 写的 iOS App（iOS 26 起），功能和网页一致，走站点的 `/api/v1` 接口，用 Bearer token 登录。通行密钥和网页共用：站点在 `/.well-known/apple-app-site-association` 里列出 `wrangler.jsonc` 的 `IOS_APP_ID`，App 的 Associated Domains 写的是 `afterword.max1874.com`。自己部署时要把这两处和 Xcode 里的 Team、Bundle ID 一起换成自己的。
+
+Debug 版可以连本地开发服务：启动参数加 `-AfterwordServer http://localhost:5199`。通行密钥只能在正式域名上用，本地用恢复码登录。
+
 ## License
 
 MIT
