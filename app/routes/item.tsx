@@ -84,7 +84,8 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
             <>
               {" · "}
               <a href={item.source_url} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-ink">
-                {SOURCE_LABELS[item.source] ?? item.source}
+                {/* Non-admin imports keep their source as `douban:<user id>`. */}
+                {SOURCE_LABELS[item.source.split(":")[0]] ?? item.source}
               </a>
             </>
           ) : null}

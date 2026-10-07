@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { createCookie, createCookieSessionStorage, redirect } from "react-router";
+import { createCookie, redirect } from "react-router";
 
 export type Viewer = { id: string; handle: string; name: string; is_admin: number; session_id: string };
 
@@ -97,42 +97,62 @@ export async function logOut(request: Request) {
 }
 
 /**
- * What a WebAuthn ceremony is for, carried with its challenge in a short-lived
- * signed cookie from the options request to the verify request.
+ * What a WebAuthn ceremony is for, kept with its challenge from the options
+ * request to the verify request.
  */
 export type Ceremony =
   | { purpose: "login"; challenge: string }
   | { purpose: "add"; challenge: string; userId: string }
   | { purpose: "setup" | "join"; challenge: string; userId: string; handle: string; name: string; invite?: string };
 
-let ceremonies: ReturnType<typeof createCookieSessionStorage<{ ceremony: Ceremony }>> | undefined;
+const CEREMONY_MS = 10 * 60_000;
 
-function ceremonyStorage() {
-  if (!env.SESSION_SECRET) throw new Error("SESSION_SECRET is not set");
-  ceremonies ??= createCookieSessionStorage<{ ceremony: Ceremony }>({
-    cookie: {
-      name: "afterword_webauthn",
-      httpOnly: true,
-      sameSite: "strict",
-      path: "/auth",
-      secure: !import.meta.env.DEV,
-      secrets: [env.SESSION_SECRET],
-      maxAge: 600,
-    },
-  });
-  return ceremonies;
-}
+// Browsers carry the ceremony id in this cookie; the iOS app sends it back in the body.
+const ceremonyCookie = createCookie("afterword_webauthn", {
+  httpOnly: true,
+  sameSite: "strict",
+  path: "/auth",
+  secure: !import.meta.env.DEV,
+  maxAge: CEREMONY_MS / 1000,
+});
 
+/** Stores a ceremony server-side; returns its id and the cookie that carries it. */
 export async function saveCeremony(ceremony: Ceremony) {
-  const store = ceremonyStorage();
-  const session = await store.getSession();
-  session.set("ceremony", ceremony);
-  return store.commitSession(session);
+  const id = base64url(crypto.getRandomValues(new Uint8Array(24)));
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM ceremonies WHERE expires_at <= datetime('now')"),
+    env.DB.prepare("INSERT INTO ceremonies (id, data, expires_at) VALUES (?, ?, ?)").bind(
+      id,
+      JSON.stringify(ceremony),
+      sqlTime(Date.now() + CEREMONY_MS),
+    ),
+  ]);
+  return { id, cookie: await ceremonyCookie.serialize(id) };
 }
 
-/** Reads and clears the pending ceremony; a challenge is good for one attempt. */
-export async function takeCeremony(request: Request) {
-  const store = ceremonyStorage();
-  const session = await store.getSession(request.headers.get("Cookie"));
-  return { ceremony: session.get("ceremony") ?? null, clear: await store.destroySession(session) };
+/**
+ * Takes the pending ceremony: deleting it in the same statement that reads it
+ * makes each challenge single-use, so a captured response cannot be replayed.
+ */
+export async function takeCeremony(request: Request, id?: string | null) {
+  const ceremonyId = id || (await ceremonyCookie.parse(request.headers.get("Cookie")));
+  const row =
+    typeof ceremonyId === "string" && ceremonyId
+      ? await env.DB.prepare("DELETE FROM ceremonies WHERE id = ? AND expires_at > datetime('now') RETURNING data")
+          .bind(ceremonyId)
+          .first<{ data: string }>()
+      : null;
+  return {
+    ceremony: row ? (JSON.parse(row.data) as Ceremony) : null,
+    clear: await ceremonyCookie.serialize("", { maxAge: 0 }),
+  };
+}
+
+/**
+ * Rejects cross-site form posts (login CSRF). Browsers always send Origin on
+ * cross-site POSTs; native clients send none and are not at risk.
+ */
+export function sameOrigin(request: Request) {
+  const origin = request.headers.get("Origin");
+  return !origin || origin === new URL(request.url).origin;
 }

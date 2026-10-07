@@ -49,8 +49,12 @@ function parseRow(raw: unknown): ImportRow | string {
  * Imports a batch of marks. Items already imported from the same source are
  * matched by source id, so re-running an import updates marks instead of
  * duplicating items.
+ *
+ * The catalog is shared and an import file can claim anything, so only an
+ * admin's rows join it under their real source. Everyone else's land under a
+ * source of their own (`douban:<user id>`), visible only through their marks.
  */
-export async function importRows(userId: string, rows: unknown[]): Promise<ImportResult> {
+export async function importRows(userId: string, isAdmin: boolean, rows: unknown[]): Promise<ImportResult> {
   const result: ImportResult = { added: 0, updated: 0, errors: [] };
   await Promise.all(
     rows.map(async (raw) => {
@@ -60,11 +64,12 @@ export async function importRows(userId: string, rows: unknown[]): Promise<Impor
         return;
       }
       const { status, rating, comment, marked_on, marked_at, ...item } = row;
+      if (!isAdmin && item.source !== "manual") item.source = `${item.source}:${userId}`;
       try {
         const existing = item.source_id ? await findBySource(item.source, item.source_id) : null;
         let id = existing?.id;
         if (!id) id = await insertItem(item, await storeCover(item.cover_url), userId);
-        else if (!existing?.cover_key && item.cover_url) {
+        else if (!existing?.cover_key && item.cover_url && (isAdmin || existing?.created_by === userId)) {
           // A cover that failed to copy last time gets another try on re-import.
           const coverKey = await storeCover(item.cover_url);
           if (coverKey) await setCoverKey(id, coverKey);

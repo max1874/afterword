@@ -2,13 +2,14 @@ import { data, Form, Link, redirect } from "react-router";
 
 import type { Route } from "./+types/login.recovery";
 import { findUserByHandle, spendRecoveryCode } from "~/lib/accounts.server";
-import { createSession } from "~/lib/session.server";
+import { createSession, sameOrigin } from "~/lib/session.server";
 
 export function meta() {
   return [{ title: "用恢复码登录 · 后记" }];
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!sameOrigin(request)) throw data(null, { status: 403 });
   const form = await request.formData();
   const handle = String(form.get("handle") ?? "").trim().replace(/^@/, "").toLowerCase();
   const code = String(form.get("code") ?? "");

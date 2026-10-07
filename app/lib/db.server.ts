@@ -107,9 +107,9 @@ export async function getItem(id: string, userId: string) {
 }
 
 export async function findBySource(source: string, sourceId: string) {
-  return env.DB.prepare("SELECT id, cover_key FROM items WHERE source = ? AND source_id = ?")
+  return env.DB.prepare("SELECT id, cover_key, created_by FROM items WHERE source = ? AND source_id = ?")
     .bind(source, sourceId)
-    .first<{ id: string; cover_key: string | null }>();
+    .first<{ id: string; cover_key: string | null; created_by: string | null }>();
 }
 
 export async function setCoverKey(id: string, coverKey: string) {
@@ -180,13 +180,13 @@ export async function saveMark(userId: string, itemId: string, mark: Mark, marke
  * works someone cares about.
  */
 export async function deleteMark(userId: string, itemId: string) {
-  await env.DB.prepare("DELETE FROM marks WHERE user_id = ? AND item_id = ?").bind(userId, itemId).run();
+  const removed = await env.DB.prepare("DELETE FROM marks WHERE user_id = ? AND item_id = ?").bind(userId, itemId).run();
+  // Only the person who just removed the last mark cleans up, in one statement so a mark made meanwhile keeps the item.
+  if (removed.meta.changes === 0) return;
   const orphan = await env.DB.prepare(
-    "SELECT cover_key FROM items i WHERE id = ? AND NOT EXISTS (SELECT 1 FROM marks WHERE item_id = i.id)",
+    "DELETE FROM items WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM marks WHERE item_id = ?1) RETURNING cover_key",
   )
     .bind(itemId)
     .first<{ cover_key: string | null }>();
-  if (!orphan) return;
-  await env.DB.prepare("DELETE FROM items WHERE id = ?").bind(itemId).run();
-  if (orphan.cover_key) await env.COVERS.delete(orphan.cover_key);
+  if (orphan?.cover_key) await env.COVERS.delete(orphan.cover_key);
 }

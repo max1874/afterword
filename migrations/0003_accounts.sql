@@ -44,6 +44,14 @@ CREATE TABLE invites (
   used_at TEXT
 );
 
+-- Pending WebAuthn ceremonies. A challenge is taken (deleted) by the verify
+-- step, so it works once, and expires after ten minutes.
+CREATE TABLE ceremonies (
+  id TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
 -- One-time codes for signing in without a passkey, stored as SHA-256.
 CREATE TABLE recovery_codes (
   user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,

@@ -17,7 +17,7 @@
 
 ```sh
 npm install
-cp .dev.vars.example .dev.vars   # 填写 OWNER_PASSWORD 和 SESSION_SECRET
+cp .dev.vars.example .dev.vars   # 填写 OWNER_PASSWORD
 npm run db:migrate:local
 npm run dev
 ```
@@ -32,7 +32,6 @@ npx wrangler r2 bucket create afterword-covers
 npm run db:migrate                        # 在远端 D1 上建表
 
 npx wrangler secret put OWNER_PASSWORD    # 只在 /setup 创建第一个通行密钥时用一次
-npx wrangler secret put SESSION_SECRET    # 例如 openssl rand -hex 32 的输出
 npx wrangler secret put TMDB_API_KEY      # 可选
 npx wrangler secret put GOOGLE_BOOKS_API_KEY  # 可选
 

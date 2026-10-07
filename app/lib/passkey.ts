@@ -43,10 +43,12 @@ export function passkeyMessage(error: unknown) {
 export type Registered = { codes?: string[]; next?: string; ok?: true };
 
 /** Creates a passkey: for the owner's first setup, an invited sign-up, or another device. */
+type Options<T extends (...args: never) => unknown> = { options: Parameters<T>[0]["optionsJSON"]; ceremony: string };
+
 export async function registerPasskey(kind: "setup" | "join" | "add", fields: Record<string, unknown> = {}) {
-  const optionsJSON = await post<Parameters<typeof startRegistration>[0]["optionsJSON"]>(`${kind}-options`, fields);
-  const response = await startRegistration({ optionsJSON });
-  return post<Registered>(`${kind}-verify`, { response });
+  const { options, ceremony } = await post<Options<typeof startRegistration>>(`${kind}-options`, fields);
+  const response = await startRegistration({ optionsJSON: options });
+  return post<Registered>(`${kind}-verify`, { response, ceremony });
 }
 
 /**
@@ -54,10 +56,10 @@ export async function registerPasskey(kind: "setup" | "join" | "add", fields: Re
  * from the username field's suggestions instead of opening a dialog.
  */
 export async function signIn(next: string, autofill = false) {
-  const optionsJSON = await post<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("login-options");
-  const response = await startAuthentication({ optionsJSON, useBrowserAutofill: autofill });
+  const { options, ceremony } = await post<Options<typeof startAuthentication>>("login-options");
+  const response = await startAuthentication({ optionsJSON: options, useBrowserAutofill: autofill });
   try {
-    return await post<{ next: string }>("login-verify", { response, next });
+    return await post<{ next: string }>("login-verify", { response, next, ceremony });
   } catch (error) {
     if (error instanceof PasskeyError && error.detail.unknownCredential) {
       await signal({ signalName: "unknownCredential", rpID: location.hostname, credentialID: response.id });

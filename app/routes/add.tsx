@@ -52,23 +52,17 @@ export async function action({ request }: Route.ActionArgs) {
   if (form.get("intent") === "pick") {
     const source = text(form, "source");
     const sourceId = text(form, "source_id");
-    const title = text(form, "title");
-    if (!source || !sourceId || !title) return data({ error: "条目信息不完整" }, { status: 400 });
+    const query = text(form, "q");
+    if (!source || !sourceId || !query) return data({ error: "条目信息不完整" }, { status: 400 });
     const existing = await findBySource(source, sourceId);
     // Already in the catalog (maybe marked by someone else): mark it on your own page.
     if (existing) return redirect(`/@${viewer.handle}/items/${existing.id}`);
-    item = {
-      kind,
-      title,
-      original_title: text(form, "original_title"),
-      year: Number(form.get("year")) || null,
-      creators: text(form, "creators"),
-      summary: text(form, "summary"),
-      cover_url: text(form, "cover_url"),
-      source,
-      source_id: sourceId,
-      source_url: text(form, "source_url"),
-    };
+    // The catalog is shared, so its entries come from the source itself, never from fields the browser posts.
+    const found = (await searchAll(kind, query))
+      .find((group) => group.source === source)
+      ?.items.find((candidate) => candidate.source_id === sourceId);
+    if (!found) return data({ error: "没有在来源里找到这个条目，请重新搜索" }, { status: 400 });
+    item = found;
   } else {
     const title = text(form, "title");
     if (!title) return data({ error: "请填写标题" }, { status: 400 });
@@ -146,7 +140,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
               </h2>
               <ul className="divide-y divide-line border-y border-line">
                 {group.items.map((item) => (
-                  <Candidate key={item.source_id} item={item} handle={handle} />
+                  <Candidate key={item.source_id} item={item} handle={handle} query={query} />
                 ))}
               </ul>
             </div>
@@ -172,7 +166,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
 
 type CandidateItem = Route.ComponentProps["loaderData"]["groups"][number]["items"][number];
 
-function Candidate({ item, handle }: { item: CandidateItem; handle: string }) {
+function Candidate({ item, handle, query }: { item: CandidateItem; handle: string; query: string }) {
   const navigation = useNavigation();
   const adding =
     navigation.state === "submitting" && navigation.formData?.get("source_id") === item.source_id;
@@ -196,11 +190,10 @@ function Candidate({ item, handle }: { item: CandidateItem; handle: string }) {
         ) : (
           <Form method="post">
             <input type="hidden" name="intent" value="pick" />
-            {(
-              ["kind", "title", "original_title", "year", "creators", "summary", "cover_url", "source", "source_id", "source_url"] as const
-            ).map((field) => (
-              <input key={field} type="hidden" name={field} value={item[field] ?? ""} />
-            ))}
+            <input type="hidden" name="kind" value={item.kind} />
+            <input type="hidden" name="source" value={item.source} />
+            <input type="hidden" name="source_id" value={item.source_id ?? ""} />
+            <input type="hidden" name="q" value={query} />
             <button
               disabled={adding}
               className="rounded-full border border-seal px-4 py-1.5 text-sm text-seal transition hover:bg-seal hover:text-seal-ink disabled:opacity-60"

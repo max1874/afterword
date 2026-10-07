@@ -26,12 +26,13 @@ import {
   touchPasskey,
 } from "~/lib/accounts.server";
 import { safeNext } from "~/lib/format";
-import { createSession, getViewer, saveCeremony, takeCeremony, type Ceremony } from "~/lib/session.server";
+import { createSession, getViewer, sameOrigin, saveCeremony, takeCeremony, type Ceremony } from "~/lib/session.server";
 
 /**
- * JSON endpoint for every passkey ceremony. Each `*-options` step returns
- * WebAuthn options and remembers the challenge in a signed cookie; the
- * matching `*-verify` step checks the browser's response against it.
+ * JSON endpoint for every passkey ceremony, for the web app and the iOS app.
+ * Each `*-options` step returns `{ options, ceremony }` and stores the
+ * challenge server-side; the matching `*-verify` step takes it (once) by the
+ * `afterword_webauthn` cookie or by `ceremony` in the body.
  */
 
 type Body = {
@@ -41,6 +42,7 @@ type Body = {
   password?: string;
   invite?: string;
   next?: string;
+  ceremony?: string;
   response?: RegistrationResponseJSON & AuthenticationResponseJSON;
 };
 
@@ -88,9 +90,10 @@ async function registrationOptions(
     userID: encoder.encode(user.id),
     attestationType: "none",
     excludeCredentials: existing.map((p) => ({ id: p.id, transports: p.transports?.split(",") })),
-    authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+    authenticatorSelection: { residentKey: "required", userVerification: "required" },
   });
-  return ok(options, [await saveCeremony({ ...ceremony, challenge: options.challenge } as Ceremony)]);
+  const saved = await saveCeremony({ ...ceremony, challenge: options.challenge } as Ceremony);
+  return ok({ options, ceremony: saved.id }, [saved.cookie]);
 }
 
 async function verifyRegistration(request: Request, ceremony: Ceremony, response: RegistrationResponseJSON) {
@@ -101,7 +104,7 @@ async function verifyRegistration(request: Request, ceremony: Ceremony, response
       expectedChallenge: ceremony.challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
-      requireUserVerification: false,
+      requireUserVerification: true,
     });
     return result.verified ? result.registrationInfo : null;
   } catch (error) {
@@ -122,17 +125,20 @@ async function profileFields(body: Body, userId?: string) {
 
 export async function action({ request }: Route.ActionArgs) {
   if (request.method !== "POST") return fail("Method not allowed", 405);
+  // A cross-site page must not be able to sign a visitor into someone else's account.
+  if (!sameOrigin(request)) return fail("Forbidden", 403);
   const body = (await request.json().catch(() => ({}))) as Body;
 
   switch (body.step) {
     case "login-options": {
       const { rpID } = relyingParty(request);
-      const options = await generateAuthenticationOptions({ rpID, userVerification: "preferred" });
-      return ok(options, [await saveCeremony({ purpose: "login", challenge: options.challenge })]);
+      const options = await generateAuthenticationOptions({ rpID, userVerification: "required" });
+      const saved = await saveCeremony({ purpose: "login", challenge: options.challenge });
+      return ok({ options, ceremony: saved.id }, [saved.cookie]);
     }
 
     case "login-verify": {
-      const { ceremony, clear } = await takeCeremony(request);
+      const { ceremony, clear } = await takeCeremony(request, body.ceremony);
       if (ceremony?.purpose !== "login" || !body.response) return fail("登录请求过期了，请再试一次", 400, {}, [clear]);
       const passkey = await getPasskey(body.response.id);
       if (!passkey) {
@@ -148,7 +154,7 @@ export async function action({ request }: Route.ActionArgs) {
           expectedChallenge: ceremony.challenge,
           expectedOrigin: origin,
           expectedRPID: rpID,
-          requireUserVerification: false,
+          requireUserVerification: true,
           credential: {
             id: passkey.id,
             publicKey: new Uint8Array(passkey.public_key),
@@ -206,7 +212,7 @@ export async function action({ request }: Route.ActionArgs) {
     case "join-verify":
     case "add-verify": {
       const purpose = body.step.slice(0, -"-verify".length);
-      const { ceremony, clear } = await takeCeremony(request);
+      const { ceremony, clear } = await takeCeremony(request, body.ceremony);
       if (ceremony?.purpose !== purpose || !body.response) return fail("请求过期了，请再试一次", 400, {}, [clear]);
       const info = await verifyRegistration(request, ceremony, body.response);
       if (!info) return fail("通行密钥没有创建成功", 400, {}, [clear]);
@@ -223,15 +229,20 @@ export async function action({ request }: Route.ActionArgs) {
 
       if (ceremony.purpose === "setup") {
         if ((await passkeyCount(ceremony.userId)) > 0) return fail("已经设置过了，请直接登录", 409, {}, [clear]);
-        await env.DB.batch([
-          env.DB.prepare("UPDATE users SET handle = ?, name = ? WHERE id = ?").bind(
-            ceremony.handle,
-            ceremony.name,
-            ceremony.userId,
-          ),
-          passkey,
-          ...statements,
-        ]);
+        try {
+          await env.DB.batch([
+            env.DB.prepare("UPDATE users SET handle = ?, name = ? WHERE id = ?").bind(
+              ceremony.handle,
+              ceremony.name,
+              ceremony.userId,
+            ),
+            passkey,
+            ...statements,
+          ]);
+        } catch (error) {
+          if (!String(error).includes("UNIQUE")) throw error;
+          return fail("这个用户名已经有人用了", 400, {}, [clear]);
+        }
       } else {
         // Claim the invite first so it cannot be used twice, and give it back if the account fails.
         const claim = await env.DB.prepare(

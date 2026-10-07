@@ -10,9 +10,20 @@ export function previewSrc(url: string | null) {
   return url;
 }
 
-/** Same-origin path to return to after login; anything else falls back to home. */
+const LOCAL = "http://local.invalid";
+
+/**
+ * Same-origin path to return to after login; anything else falls back to
+ * home. Parsing catches tricks like `/\evil.com`, which browsers read as `//evil.com`.
+ */
 export function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  if (!value?.startsWith("/")) return "/";
+  try {
+    const url = new URL(value, LOCAL);
+    return url.origin === LOCAL ? url.pathname + url.search + url.hash : "/";
+  } catch {
+    return "/";
+  }
 }
 
 const LATIN = /[A-Za-z0-9]/;

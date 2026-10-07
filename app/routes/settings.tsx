@@ -59,7 +59,12 @@ export async function action({ request }: Route.ActionArgs) {
       if (await handleTaken(handle.handle, viewer.id)) {
         return data({ intent: "profile", error: "这个用户名已经有人用了" }, { status: 400 });
       }
-      await updateProfile(viewer.id, handle.handle, name.name);
+      try {
+        await updateProfile(viewer.id, handle.handle, name.name);
+      } catch (error) {
+        if (!String(error).includes("UNIQUE")) throw error;
+        return data({ intent: "profile", error: "这个用户名已经有人用了" }, { status: 400 });
+      }
       return { intent: "profile", saved: { handle: handle.handle, name: name.name } };
     }
     case "delete-passkey": {
