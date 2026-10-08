@@ -120,68 +120,23 @@ function Row({ title, count, to, children }: { title: string; count?: number; to
   );
 }
 
-/** Tiles into the library by kind, like Infuse's Favorites, made of that kind's latest covers. */
+/** Tiles into the library by kind, like Infuse's Favorites: that kind's latest covers side by side. */
 function KindTiles({ handle, covers }: { handle: string; covers: Record<Kind | "all", string[]> }) {
   const tiles: [Kind | "all", string][] = [["all", "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])];
   return tiles.map(([key, label]) => (
     <li key={key} className="w-[112px] shrink-0 snap-start sm:w-[168px]">
       <Link to={profileHref(handle, "library", { kind: key === "all" ? undefined : key })} className="group block">
         <div className="relative h-[68px] overflow-hidden rounded-2xl bg-card shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.25)] transition group-hover:-translate-y-0.5 sm:h-[84px]">
-          {covers[key].length ? (
-            <>
-              <div aria-hidden className="absolute inset-0 flex">
-                {covers[key].map((src) => (
-                  <img key={src} src={src} alt="" referrerPolicy="no-referrer" className="h-full min-w-0 flex-1 object-cover" />
-                ))}
-              </div>
-              <div className="absolute inset-0 bg-black/50" />
-            </>
-          ) : null}
-          <div className={`relative grid h-full place-items-center ${covers[key].length ? "text-white" : "text-muted"}`}>
-            <KindIcon kind={key} />
+          <div aria-hidden className="absolute inset-0 flex">
+            {covers[key].map((src) => (
+              <img key={src} src={src} alt="" referrerPolicy="no-referrer" className="h-full min-w-0 flex-1 object-cover" />
+            ))}
           </div>
         </div>
         <p className="mt-1.5 text-[13px] font-medium">{label}</p>
       </Link>
     </li>
   ));
-}
-
-function KindIcon({ kind }: { kind: Kind | "all" }) {
-  const paths: Record<Kind | "all", React.ReactNode> = {
-    all: (
-      <>
-        <rect x="4" y="4" width="7" height="7" rx="1.5" />
-        <rect x="13" y="4" width="7" height="7" rx="1.5" />
-        <rect x="4" y="13" width="7" height="7" rx="1.5" />
-        <rect x="13" y="13" width="7" height="7" rx="1.5" />
-      </>
-    ),
-    screen: (
-      <>
-        <rect x="3" y="5" width="18" height="12" rx="2" />
-        <path d="M8 21h8M12 17v4" />
-      </>
-    ),
-    book: <path d="M4 5.5C6.5 4 9.5 4 12 5.5v14C9.5 18 6.5 18 4 19.5zM20 5.5C17.5 4 14.5 4 12 5.5v14c2.5-1.5 5.5-1.5 8 0z" />,
-    comic: (
-      <>
-        <rect x="4" y="3" width="16" height="18" rx="2" />
-        <path d="M4 11h16M12 11v10" />
-      </>
-    ),
-    game: (
-      <>
-        <path d="M7 8h10a4 4 0 0 1 4 4.5l-.6 3.4a2.5 2.5 0 0 1-4.3 1.3L14.5 15h-5l-1.6 2.2a2.5 2.5 0 0 1-4.3-1.3L3 12.5A4 4 0 0 1 7 8z" />
-        <path d="M8 11v3M6.5 12.5h3" />
-      </>
-    ),
-  };
-  return (
-    <svg viewBox="0 0 24 24" className="size-8 sm:size-9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {paths[kind]}
-    </svg>
-  );
 }
 
 function PosterCard({ item, handle, status }: { item: ShelfItem; handle: string; status: Status }) {

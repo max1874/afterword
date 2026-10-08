@@ -88,11 +88,7 @@ struct HomeView: View {
         .padding(.top, 26)
     }
 
-    private static let tileSymbols: [Kind?: String] = [
-        nil: "square.grid.2x2", .screen: "tv", .book: "book", .comic: "book.pages", .game: "gamecontroller",
-    ]
-
-    /// Tiles into the library by kind, like Infuse's Favorites, made of that kind's latest covers.
+    /// Tiles into the library by kind, like Infuse's Favorites: that kind's latest covers side by side.
     @ViewBuilder private var kindTiles: some View {
         ForEach([Kind?.none] + Kind.allCases.map { Optional($0) }, id: \.self) { kind in
             let covers = shelves?.tiles?[kind?.rawValue ?? "all"] ?? []
@@ -101,17 +97,9 @@ struct HomeView: View {
                     Color.card
                         .frame(width: 112, height: 68)
                         .overlay {
-                            if !covers.isEmpty {
-                                HStack(spacing: 0) {
-                                    ForEach(covers, id: \.self) { path in TileCover(path: path) }
-                                }
-                                Color.black.opacity(0.5)
+                            HStack(spacing: 0) {
+                                ForEach(covers, id: \.self) { path in TileCover(path: path) }
                             }
-                        }
-                        .overlay {
-                            Image(systemName: Self.tileSymbols[kind]!)
-                                .font(.system(size: 26, weight: .medium))
-                                .foregroundStyle(covers.isEmpty ? Color.muted : .white)
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                     Text(kind?.label ?? "全部").font(.footnote.weight(.medium))
