@@ -60,7 +60,13 @@ function fill(item: DetailsItem) {
   // Both steps read the Douban entry: the text for its intro, the game artwork for its English names.
   let subject: Promise<DoubanSubject | null> | undefined;
   const douban = () => (subject ??= doubanSubject(item));
-  const text = quietly((item) => fillText(item, douban));
+  // A failed Douban request is retried on a later visit; a missing artwork match is not.
+  const text = quietly((item) =>
+    fillText(item, douban).catch(async (error) => {
+      await env.DB.prepare("UPDATE items SET details_checked_at = NULL WHERE id = ?").bind(item.id).run();
+      throw error;
+    }),
+  );
   return { text, done: Promise.all([text, quietly((item) => fillBackdrop(item, douban))]) };
 }
 
