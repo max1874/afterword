@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -32,6 +33,13 @@ struct CoverImage: View {
 
     @State private var image: UIImage?
 
+    init(path: String?, title: String) {
+        self.path = path
+        self.title = title
+        // Already decoded covers show on the first frame instead of after a task hop.
+        _image = State(initialValue: path.flatMap { CoverCache.shared.object(forKey: $0 as NSString) })
+    }
+
     var body: some View {
         Rectangle()
             .fill(Color.line.opacity(0.6))
@@ -54,16 +62,31 @@ struct CoverImage: View {
 
     private func load() async {
         guard let path, let url = model.api.url(for: path) else { image = nil; return }
-        if let cached = CoverCache.shared.object(forKey: url as NSURL) { image = cached; return }
-        guard let data = try? await model.api.data(from: url), let loaded = UIImage(data: data) else { return }
-        CoverCache.shared.setObject(loaded, forKey: url as NSURL)
+        if let cached = CoverCache.shared.object(forKey: path as NSString) { image = cached; return }
+        guard let data = try? await model.api.data(from: url), let loaded = await Self.thumbnail(data) else { return }
+        CoverCache.shared.setObject(loaded, forKey: path as NSString)
         image = loaded
+    }
+
+    /// Decoded and scaled down off the main thread; covers are up to 1024px tall and
+    /// decoding them while scrolling drops frames.
+    @concurrent
+    private static func thumbnail(_ data: Data) async -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 600,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: image)
     }
 }
 
 enum CoverCache {
-    static let shared: NSCache<NSURL, UIImage> = {
-        let cache = NSCache<NSURL, UIImage>()
+    static let shared: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 300
         return cache
     }()

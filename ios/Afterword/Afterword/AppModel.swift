@@ -31,6 +31,8 @@ final class AppModel {
     var minePath: [Route] = []
     /// Bumped whenever marks change, so lists reload.
     var marksVersion = 0
+    /// Marked items seen in lists, by `handle/id`, so item pages open without waiting.
+    var knownItems: [String: MarkedItem] = [:]
     /// Recovery codes from joining or regenerating, shown once over everything.
     var freshRecoveryCodes: [String]?
     #if DEBUG
@@ -45,11 +47,13 @@ final class AppModel {
     func loadMe() async {
         guard api.isSignedIn else { return }
         loadError = nil
+        // Open on the last known account instead of a spinner; the request below confirms it.
+        if me == nil { me = api.cached("me") }
         do {
             me = try await api.api("GET", "me")
         } catch {
-            // A 401 already signed the app out; anything else gets a retry.
-            loadError = error.localizedDescription
+            // A 401 already signed the app out; anything else gets a retry unless we can carry on.
+            if me == nil { loadError = error.localizedDescription }
         }
     }
 
@@ -96,6 +100,7 @@ final class AppModel {
         try? await api.api("POST", "auth/logout")
         api.setToken(nil)
         me = nil
+        knownItems = [:]
         minePath = []
         tab = .mine
     }

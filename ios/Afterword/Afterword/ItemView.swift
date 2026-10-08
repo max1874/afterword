@@ -71,8 +71,10 @@ struct ItemView: View {
             if mine {
                 MarkEditor(item: item, today: model.me?.today ?? "") { saved in
                     self.item = saved
+                    model.knownItems["\(handle)/\(id)"] = saved
                     model.marksVersion += 1
                 } onDelete: {
+                    model.knownItems["\(handle)/\(id)"] = nil
                     model.marksVersion += 1
                     dismiss()
                 }
@@ -89,6 +91,8 @@ struct ItemView: View {
 
     @State private var ownerName = ""
 
+    private var itemPath: String { "users/\(handle)/items/\(id)" }
+
     private func meta(_ item: MarkedItem) -> some View {
         let parts = [item.kind.label, item.year.map(String.init), item.creators.map { "\(item.kind.creatorLabel) \($0)" }]
             .compactMap { $0 }
@@ -104,17 +108,25 @@ struct ItemView: View {
     }
 
     private func load() async {
+        if item == nil, let known = model.knownItems["\(handle)/\(id)"] ?? model.api.cached(itemPath).map({ (r: ItemResponse) in r.item }) {
+            item = known
+            mine = model.me?.handle == handle
+        }
         do {
-            let response: ItemResponse = try await model.api.api("GET", "users/\(handle)/items/\(id)")
+            let response: ItemResponse = try await model.api.api("GET", itemPath)
             item = response.item
             mine = response.mine
             if !mine, ownerName.isEmpty {
+                ownerName = (model.api.cached("users/\(handle)") as Profile?)?.name ?? ""
                 let profile: Profile? = try? await model.api.api("GET", "users/\(handle)")
                 ownerName = profile?.name ?? "@\(handle)"
             }
         } catch is CancellationError {
+        } catch let failure as APIError where failure.status == 404 {
+            item = nil
+            error = failure.localizedDescription
         } catch {
-            self.error = error.localizedDescription
+            if item == nil { self.error = error.localizedDescription }
         }
     }
 }

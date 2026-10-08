@@ -146,6 +146,7 @@ struct ProfileView: View {
                         card(item)
                     }
                     .buttonStyle(.plain)
+                    .onAppear { prefetch(after: item) }
                 }
             }
         }
@@ -171,6 +172,12 @@ struct ProfileView: View {
         .contentShape(Rectangle())
     }
 
+    /// Starts the next page a couple of screens before the end, not at the spinner.
+    private func prefetch(after item: MarkedItem) {
+        guard hasMore, !loading, let index = items.lastIndex(where: { $0.id == item.id }), index >= items.count - 18 else { return }
+        Task { await loadMore() }
+    }
+
     @ViewBuilder private var footer: some View {
         if hasMore {
             ProgressView()
@@ -182,19 +189,52 @@ struct ProfileView: View {
 
     private func reload() async {
         error = nil
+        // Show what this screen had last time straight away; the network takes about a second.
+        if shownFilter != filterKey {
+            if profile == nil { profile = model.api.cached("users/\(handle)") }
+            if let cachedFirst: MarksPage = model.api.cached(pagePath(1)) {
+                show(cachedFirst)
+            } else {
+                items = []
+                page = 0
+                hasMore = true
+            }
+            shownFilter = filterKey
+        }
         do {
             async let fetchedProfile: Profile = model.api.api("GET", "users/\(handle)")
             let first = try await fetchPage(1)
             profile = try await fetchedProfile
-            items = first.items
-            yearCounts = first.yearCounts
-            page = 1
-            hasMore = first.hasMore
+            remember(first.items)
+            // Keep the later pages already loaded when the first page has not changed.
+            if page > 1, first.items.map(\.id) == Array(items.prefix(first.items.count)).map(\.id) {
+                items.replaceSubrange(0..<first.items.count, with: first.items)
+                yearCounts = first.yearCounts
+            } else {
+                show(first)
+            }
         } catch is CancellationError {
         } catch {
             self.error = error.localizedDescription
-            hasMore = false
+            if items.isEmpty { hasMore = false }
         }
+    }
+
+    /// The filter the items on screen belong to; another one starts from its own cache.
+    @State private var shownFilter = ""
+    private var filterKey: String { "\(handle)|\(kind?.rawValue ?? "")|\(status?.rawValue ?? "")" }
+
+    private func show(_ first: MarksPage) {
+        items = first.items
+        yearCounts = first.yearCounts
+        page = 1
+        hasMore = first.hasMore
+        remember(first.items)
+    }
+
+    /// Item pages open with what the list already knows, then refresh.
+    private func remember(_ marked: [MarkedItem]) {
+        for item in marked { model.knownItems["\(handle)/\(item.id)"] = item }
     }
 
     private func loadMore() async {
@@ -203,6 +243,7 @@ struct ProfileView: View {
         defer { loading = false }
         do {
             let next = try await fetchPage(page + 1)
+            remember(next.items)
             let known = Set(items.map(\.id))
             items += next.items.filter { !known.contains($0.id) }
             page = next.page
@@ -214,11 +255,15 @@ struct ProfileView: View {
     }
 
     private func fetchPage(_ page: Int) async throws -> MarksPage {
+        try await model.api.api("GET", pagePath(page))
+    }
+
+    private func pagePath(_ page: Int) -> String {
         var query = [URLQueryItem(name: "page", value: String(page))]
         if let kind { query.append(URLQueryItem(name: "kind", value: kind.rawValue)) }
         if let status { query.append(URLQueryItem(name: "status", value: status.rawValue)) }
         var components = URLComponents()
         components.queryItems = query
-        return try await model.api.api("GET", "users/\(handle)/marks?\(components.percentEncodedQuery ?? "")")
+        return "users/\(handle)/marks?\(components.percentEncodedQuery ?? "")"
     }
 }

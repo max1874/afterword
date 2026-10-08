@@ -38,6 +38,7 @@ final class APIClient {
     func setToken(_ token: String?) {
         self.token = token
         Keychain.write(token, account: server.host() ?? "")
+        if token == nil { responses.clear() }
     }
 
     /// A site path (`/covers/…`, `/@max`) or absolute URL as a URL on this server.
@@ -48,8 +49,18 @@ final class APIClient {
 
     func api<T: Decodable>(_ method: String, _ path: String, body: Any? = nil, as type: T.Type = T.self) async throws -> T {
         let data = try await send(method, "/api/v1/\(path)", body: body)
-        return try decoder.decode(T.self, from: data)
+        let value = try decoder.decode(T.self, from: data)
+        if method == "GET" { responses.store(data, for: path) }
+        return value
     }
+
+    /// The last response to a GET, so screens can show it at once while they refresh:
+    /// every request crosses the Pacific to Cloudflare and takes about a second.
+    func cached<T: Decodable>(_ path: String, as type: T.Type = T.self) -> T? {
+        responses.data(for: path).flatMap { try? decoder.decode(T.self, from: $0) }
+    }
+
+    private let responses = ResponseCache()
 
     func api(_ method: String, _ path: String, body: Any? = nil) async throws {
         _ = try await send(method, "/api/v1/\(path)", body: body)
@@ -63,11 +74,19 @@ final class APIClient {
         return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
+    /// Covers are immutable, so they stay on disk across launches.
+    private let imageSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = URLCache(memoryCapacity: 32 << 20, diskCapacity: 400 << 20)
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        return URLSession(configuration: configuration)
+    }()
+
     /// Raw bytes with the session attached, for covers behind sign-in.
     func data(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         if let token, url.host() == server.host() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await imageSession.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return data
     }
@@ -93,6 +112,34 @@ final class APIClient {
             throw APIError(status: status, message: message ?? "请求失败（HTTP \(status)）")
         }
         return data
+    }
+}
+
+/// GET responses by path, in memory and in the Caches directory.
+final class ResponseCache {
+    private var memory: [String: Data] = [:]
+    private let directory = URL.cachesDirectory.appending(path: "api", directoryHint: .isDirectory)
+
+    func data(for path: String) -> Data? {
+        if let data = memory[path] { return data }
+        let data = try? Data(contentsOf: file(for: path))
+        memory[path] = data
+        return data
+    }
+
+    func store(_ data: Data, for path: String) {
+        memory[path] = data
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? data.write(to: file(for: path), options: .atomic)
+    }
+
+    func clear() {
+        memory = [:]
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    private func file(for path: String) -> URL {
+        directory.appending(path: Data(path.utf8).base64URL)
     }
 }
 

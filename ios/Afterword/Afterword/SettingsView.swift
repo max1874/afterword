@@ -180,6 +180,7 @@ struct SettingsView: View {
             name = me.name
             handle = me.handle
         }
+        if settings == nil { settings = model.api.cached("settings") }
         do {
             settings = try await model.api.api("GET", "settings")
         } catch is CancellationError {
