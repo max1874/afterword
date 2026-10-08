@@ -34,6 +34,7 @@ npm run db:migrate                        # 在远端 D1 上建表
 npx wrangler secret put OWNER_PASSWORD    # 只在 /setup 创建第一个通行密钥时用一次
 npx wrangler secret put TMDB_API_KEY      # 可选
 npx wrangler secret put GOOGLE_BOOKS_API_KEY  # 可选
+npx wrangler secret put STEAMGRIDDB_API_KEY   # 可选，游戏横图
 
 npm run deploy
 ```
@@ -50,6 +51,8 @@ npm run deploy
 | 书 | 豆瓣、Bangumi、Google Books | Google Books 需 `GOOGLE_BOOKS_API_KEY` |
 | 漫画 | Bangumi | — |
 | 游戏 | Bangumi | — |
+
+首页横卡和条目页的横图：影视来自 TMDB（需 `TMDB_API_KEY`），游戏先找 Steam，再找 SteamGridDB（需 `STEAMGRIDDB_API_KEY`）。豆瓣导入的条目，简介和资料从豆瓣补全。
 
 ## iOS App
 

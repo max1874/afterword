@@ -57,22 +57,28 @@ function fill(item: DetailsItem) {
       .then((ok) => (ok ? step(item) : undefined))
       // Before migration 0006 the claim fails quietly, and pages keep what they have.
       .catch((error) => console.warn("details lookup failed", item.id, error));
-  const text = quietly(fillText);
-  return { text, done: Promise.all([text, quietly(fillBackdrop)]) };
+  // Both steps read the Douban entry: the text for its intro, the game artwork for its English names.
+  let subject: Promise<DoubanSubject | null> | undefined;
+  const douban = () => (subject ??= doubanSubject(item));
+  const text = quietly((item) => fillText(item, douban));
+  return { text, done: Promise.all([text, quietly((item) => fillBackdrop(item, douban))]) };
 }
 
-async function fillText(item: DetailsItem) {
+type DoubanLookup = () => Promise<DoubanSubject | null>;
+
+async function fillText(item: DetailsItem, douban: DoubanLookup) {
   if (item.summary && item.facts) return;
-  const found = await doubanDetails(item);
+  const subject = await douban();
+  const found = subject && doubanDetails(item, subject);
   if (!found) return;
   await env.DB.prepare("UPDATE items SET summary = COALESCE(NULLIF(summary, ''), ?), facts = COALESCE(facts, ?) WHERE id = ?")
     .bind(found.summary, found.facts.length ? JSON.stringify(found.facts) : null, item.id)
     .run();
 }
 
-async function fillBackdrop(item: DetailsItem) {
+async function fillBackdrop(item: DetailsItem, douban: DoubanLookup) {
   if (item.backdrop_key || (item.kind !== "screen" && item.kind !== "game")) return;
-  const url = item.kind === "screen" ? await tmdbBackdrop(item) : await steamHero(item);
+  const url = item.kind === "screen" ? await tmdbBackdrop(item) : await gameArt(item, await douban().catch(() => null));
   if (!url) return;
   const key = await storeCover(url);
   await env.DB.prepare("UPDATE items SET backdrop_url = ?, backdrop_key = ? WHERE id = ?").bind(url, key, item.id).run();
@@ -83,6 +89,7 @@ async function fillBackdrop(item: DetailsItem) {
 
 type DoubanSubject = {
   intro?: string;
+  aliases?: string[];
   genres?: string[];
   countries?: string[];
   pubdate?: string[];
@@ -101,12 +108,15 @@ type DoubanSubject = {
 /** Label and value pairs shown under 资料 on item pages. */
 export type Facts = [string, string][];
 
-async function doubanDetails(item: DetailsItem): Promise<{ summary: string | null; facts: Facts } | null> {
+async function doubanSubject(item: DetailsItem) {
   if (item.source.split(":")[0] !== "douban" || !item.source_id) return null;
   // Films and series share ids; the API redirects a series' movie/ path to tv/.
   const res = await fetch(`https://m.douban.com/rexxar/api/v2/${item.source_id}`, { headers: DOUBAN_MOBILE_HEADERS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const s = (await res.json()) as DoubanSubject;
+  return (await res.json()) as DoubanSubject;
+}
+
+function doubanDetails(item: DetailsItem, s: DoubanSubject): { summary: string | null; facts: Facts } {
   const join = (values: (string | null | undefined)[] | undefined, sep = " / ") =>
     values?.filter(Boolean).slice(0, 4).join(sep) || null;
   const rows: [string, string | null][] =
@@ -158,6 +168,9 @@ export function seriesName(name: string) {
 /** Lowercase letters, digits and CJK only, without season markers, for comparing names across sources. */
 export function normalizeName(name: string | null | undefined) {
   return seriesName(name ?? "")
+    // "Pokémon" and "Pokemon" are the same name.
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
@@ -256,18 +269,32 @@ async function seasonStill(seriesId: number, rest: string) {
   return still ? tmdbImage(still) : null;
 }
 
-// Steam
+// Games: Steam's own library hero first, then SteamGridDB, whose community heroes cover
+// Nintendo and PlayStation games too. Both are searched by the English name, which Douban
+// keeps as the original title or among the aliases of Japanese games.
+
+/** English (Latin-script) names of a game, from its original title and Douban aliases. */
+function englishNames(item: DetailsItem, subject: DoubanSubject | null) {
+  const names = [item.original_title, ...(subject?.aliases ?? [])].filter(
+    (name): name is string => Boolean(name) && /^[\p{Script=Latin}\p{N}\p{P}\p{S}\s]+$/u.test(name!) && name!.length > 3,
+  );
+  return [...new Set(names)].slice(0, 3);
+}
+
+async function gameArt(item: DetailsItem, subject: DoubanSubject | null) {
+  const english = englishNames(item, subject);
+  return (await steamHero(item, english)) ?? (await steamGridHero(item, english));
+}
 
 type SteamHit = { type: string; name: string; id: number };
 
-async function steamHero(item: DetailsItem) {
-  const wanted = names(item);
-  const searches: [string | null, string, string][] = [
-    [item.title, "schinese", "CN"],
-    [item.original_title, "english", "US"],
+async function steamHero(item: DetailsItem, english: string[]) {
+  const wanted = [...new Set([...names(item), ...english.map(normalizeName)])];
+  const searches: [string, string, string][] = [
+    ...(item.title ? [[item.title, "schinese", "CN"] as [string, string, string]] : []),
+    ...english.slice(0, 2).map((name): [string, string, string] => [name, "english", "US"]),
   ];
   for (const [term, language, country] of searches) {
-    if (!term) continue;
     const url = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=${language}&cc=${country}`;
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
     if (!res.ok) continue;
@@ -278,6 +305,45 @@ async function steamHero(item: DetailsItem) {
       const image = `https://cdn.cloudflare.steamstatic.com/steam/apps/${hit.id}/${file}`;
       const head = await fetch(image, { method: "HEAD" });
       if (head.ok) return image;
+    }
+  }
+  return null;
+}
+
+type GridGame = { id: number; name: string; release_date?: number };
+type GridHero = { url: string; style: string; score?: number };
+
+async function steamGrid<T>(path: string) {
+  const key = env.STEAMGRIDDB_API_KEY;
+  if (!key) return null;
+  const res = await fetch(`https://www.steamgriddb.com/api/v2/${path}`, { headers: { Authorization: `Bearer ${key}` } });
+  if (!res.ok) return null;
+  const body = (await res.json()) as { success?: boolean; data?: T };
+  return body.success ? (body.data ?? null) : null;
+}
+
+async function steamGridHero(item: DetailsItem, english: string[]) {
+  for (const name of english.slice(0, 2)) {
+    const wanted = normalizeName(name);
+    const games = await steamGrid<GridGame[]>(`search/autocomplete/${encodeURIComponent(name)}`);
+    // Same name, or ours plus an edition word ("Pokémon FireRed" → "Pokémon FireRed Version");
+    // a matching release year breaks ties between remakes.
+    const year = (game: GridGame) => (game.release_date ? new Date(game.release_date * 1000).getUTCFullYear() : null);
+    const candidates = (games ?? []).filter((game) => {
+      const found = normalizeName(game.name);
+      return found === wanted || (wanted.length >= 6 && found.startsWith(wanted));
+    });
+    const game = candidates.find((g) => item.year && year(g) === item.year) ?? candidates[0];
+    if (!game) continue;
+    // Heroes are wide banners without the title logo, made for a library's header. The
+    // "alternate" style is the game's own art; "material" is flat abstract design and
+    // "blurred" a blur, so those only stand in when nothing else exists. Most voted first.
+    for (const styles of ["alternate", "material"]) {
+      const heroes = await steamGrid<GridHero[]>(
+        `heroes/game/${game.id}?styles=${styles}&dimensions=1920x620,3840x1240&types=static&nsfw=false&humor=false&epilepsy=false`,
+      );
+      const hero = heroes?.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+      if (hero) return hero.url;
     }
   }
   return null;
