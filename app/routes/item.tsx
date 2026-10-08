@@ -147,7 +147,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
         {item.source_url ? (
           <p className="text-sm text-muted">
             来源：
-            <a href={item.source_url} target="_blank" rel="noreferrer" className="text-accent hover:opacity-75">
+            <a href={item.source_url} target="_blank" rel="noreferrer" className="underline decoration-line underline-offset-4 hover:decoration-ink">
               {/* Non-admin imports keep their source as `douban:<user id>`. */}
               {SOURCE_LABELS[item.source.split(":")[0]] ?? item.source}
             </a>
@@ -178,7 +178,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
 
         {!mine && viewerHandle ? (
           <p className="text-sm">
-            <Link to={`/@${viewerHandle}/items/${item.id}`} className="text-accent hover:opacity-75">
+            <Link to={`/@${viewerHandle}/items/${item.id}`} className="underline decoration-line underline-offset-4 hover:decoration-ink">
               我的标记
             </Link>
           </p>
@@ -202,7 +202,7 @@ function Summary({ text }: { text: string }) {
     <>
       <p className={`whitespace-pre-wrap text-[15px] leading-relaxed text-muted ${long && !open ? "line-clamp-5" : ""}`}>{text}</p>
       {long && !open ? (
-        <button onClick={() => setOpen(true)} className="mt-1 text-[15px] font-semibold hover:text-accent">
+        <button onClick={() => setOpen(true)} className="mt-1 text-[15px] font-semibold hover:opacity-70">
           更多
         </button>
       ) : null}
@@ -230,7 +230,7 @@ function QuickStatus({ kind, current }: { kind: Kind; current: Status | null }) 
             name="status"
             value={s}
             title={statusLabel(s, kind)}
-            className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition ${on ? "bg-accent/20 text-accent shadow-[inset_0_0_0_1px_var(--accent)]" : "bg-card/80 backdrop-blur hover:text-accent"}`}
+            className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition ${on ? "bg-ink text-paper" : "bg-card/80 backdrop-blur hover:opacity-70"}`}
           >
             <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               {icons[s]}

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 
+import { coverSrc } from "./format";
 import type { Kind, Status } from "./kinds";
 
 export type Item = {
@@ -115,6 +116,34 @@ export async function listShelves(filter: Omit<MarkFilter, "status">) {
     }),
   );
   return Object.fromEntries(shelves) as Record<Status, MarkedItem[]>;
+}
+
+/** Covers on each kind tile of a home page. */
+const TILE_COVERS = 3;
+
+/** The latest covers per kind, and across all kinds under "all", for the tiles on a home page. */
+export async function tileCovers(userId: string) {
+  const { results } = await env.DB.prepare(
+    `SELECT kind, cover_key, cover_url FROM (
+       SELECT i.kind, i.cover_key, i.cover_url, m.marked_on, m.marked_at,
+              ROW_NUMBER() OVER (PARTITION BY i.kind ORDER BY m.marked_on DESC, m.marked_at DESC) AS n
+       FROM marks m JOIN items i ON i.id = m.item_id
+       WHERE m.user_id = ? AND (i.cover_key IS NOT NULL OR i.cover_url IS NOT NULL)
+     )
+     WHERE n <= ?
+     ORDER BY marked_on DESC, marked_at DESC`,
+  )
+    .bind(userId, TILE_COVERS)
+    .all<{ kind: Kind; cover_key: string | null; cover_url: string | null }>();
+  const tiles: Record<Kind | "all", string[]> = { all: [], screen: [], book: [], comic: [], game: [] };
+  for (const row of results) {
+    const src = coverSrc(row);
+    if (!src) continue;
+    tiles[row.kind].push(src);
+    // The newest three overall are each among the newest three of their kind.
+    if (tiles.all.length < TILE_COVERS) tiles.all.push(src);
+  }
+  return tiles;
 }
 
 export async function countByKindAndStatus(userId: string) {

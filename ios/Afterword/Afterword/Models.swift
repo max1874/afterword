@@ -126,6 +126,8 @@ nonisolated struct Shelves: Decodable {
     let doing: [MarkedItem]
     let done: [MarkedItem]
     let wish: [MarkedItem]
+    /// Cover paths for the kind tiles, keyed by kind and "all"; older servers omit it.
+    let tiles: [String: [String]]?
 
     subscript(status: Status) -> [MarkedItem] {
         switch status {

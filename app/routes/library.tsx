@@ -82,7 +82,7 @@ export default function Library({ loaderData }: Route.ComponentProps) {
         <div className="py-20 text-center text-muted">
           <p className="text-xl">这里还空着。</p>
           {mine ? (
-            <Link to="/add" className="mt-4 inline-block text-accent">
+            <Link to="/add" className="mt-4 inline-block text-ink underline decoration-line underline-offset-4 hover:decoration-ink">
               记下第一部作品
             </Link>
           ) : null}
@@ -92,12 +92,12 @@ export default function Library({ loaderData }: Route.ComponentProps) {
           <Timeline key={`${handle}:${kind}:${status}:${until}`} first={loaderData} />
           {years.length > 1 ? (
             /* Jump to a year, like Infuse's letter index down the side. */
-            <nav className="fixed top-1/2 right-1 z-10 flex -translate-y-1/2 flex-col items-center gap-0.5 text-[11px] font-bold text-accent sm:right-3">
+            <nav className="fixed top-1/2 right-1 z-10 flex -translate-y-1/2 flex-col items-center gap-0.5 text-[11px] font-bold text-muted sm:right-3">
               {years.map((y) => (
                 <Link
                   key={y}
                   to={profileHref(handle, "library", { kind, status, until: Number(y) })}
-                  className={`rounded px-1 py-px leading-tight ${until === Number(y) ? "bg-accent text-accent-ink" : "hover:opacity-70"}`}
+                  className={`rounded px-1 py-px leading-tight ${until === Number(y) ? "bg-ink text-paper" : "hover:text-ink"}`}
                 >
                   {y.slice(2)}
                 </Link>

@@ -68,9 +68,11 @@ struct HomeView: View {
                     Text("\(count)").font(.subheadline.weight(.medium)).foregroundStyle(Color.muted)
                 }
                 Spacer()
-                NavigationLink("查看全部", value: route)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.accent)
+                NavigationLink(value: route) {
+                    Text("查看全部 ›")
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.muted)
             }
             .padding(.horizontal, 16)
 
@@ -86,34 +88,32 @@ struct HomeView: View {
         .padding(.top, 26)
     }
 
-    private static let tileColours: [Kind?: [Color]] = [
-        nil: [Color(red: 0.56, green: 0.56, blue: 0.58), Color(red: 0.28, green: 0.28, blue: 0.29)],
-        .screen: [Color(red: 0.04, green: 0.52, blue: 1), Color(red: 0.37, green: 0.36, blue: 0.9)],
-        .book: [Color(red: 1, green: 0.62, blue: 0.04), Color(red: 1, green: 0.42, blue: 0)],
-        .comic: [Color(red: 1, green: 0.22, blue: 0.37), Color(red: 0.75, green: 0.35, blue: 0.95)],
-        .game: [Color(red: 0.19, green: 0.82, blue: 0.35), Color(red: 0, green: 0.65, blue: 0.72)],
-    ]
-
     private static let tileSymbols: [Kind?: String] = [
         nil: "square.grid.2x2", .screen: "tv", .book: "book", .comic: "book.pages", .game: "gamecontroller",
     ]
 
-    /// Bright tiles into the library by kind, like Infuse's Favorites.
+    /// Tiles into the library by kind, like Infuse's Favorites, made of that kind's latest covers.
     @ViewBuilder private var kindTiles: some View {
         ForEach([Kind?.none] + Kind.allCases.map { Optional($0) }, id: \.self) { kind in
+            let covers = shelves?.tiles?[kind?.rawValue ?? "all"] ?? []
             NavigationLink(value: Route.library(handle: handle, kind: kind, status: nil)) {
                 VStack(alignment: .leading, spacing: 6) {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(LinearGradient(colors: Self.tileColours[kind]!, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    Color.card
                         .frame(width: 112, height: 68)
-                        .overlay { Image(systemName: Self.tileSymbols[kind]!).font(.system(size: 28, weight: .medium)) }
-                        .overlay(alignment: .topTrailing) {
-                            Text("\(profile?.total(kind: kind) ?? 0)")
-                                .font(.caption.weight(.bold))
-                                .padding(.top, 6)
-                                .padding(.trailing, 9)
+                        .overlay {
+                            if !covers.isEmpty {
+                                HStack(spacing: 0) {
+                                    ForEach(covers, id: \.self) { path in TileCover(path: path) }
+                                }
+                                Color.black.opacity(0.5)
+                            }
                         }
-                        .foregroundStyle(.white)
+                        .overlay {
+                            Image(systemName: Self.tileSymbols[kind]!)
+                                .font(.system(size: 26, weight: .medium))
+                                .foregroundStyle(covers.isEmpty ? Color.muted : .white)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     Text(kind?.label ?? "全部").font(.footnote.weight(.medium))
                 }
             }
@@ -249,4 +249,26 @@ struct WideCard: View {
 extension Status {
     /// The order of the rows on a home page.
     static let shelfOrder: [Status] = [.doing, .done, .wish]
+}
+
+/// One cover filling its share of a kind tile.
+private struct TileCover: View {
+    @Environment(AppModel.self) private var model
+    let path: String
+
+    @State private var image: UIImage?
+
+    init(path: String) {
+        self.path = path
+        _image = State(initialValue: CoverCache.shared.object(forKey: path as NSString))
+    }
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                if let image { Image(uiImage: image).resizable().scaledToFill() }
+            }
+            .clipped()
+            .task(id: path) { image = await CoverImage.image(for: path, api: model.api) }
+    }
 }

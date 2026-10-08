@@ -159,7 +159,7 @@ function Candidate({ item, handle, query }: { item: CandidateItem; handle: strin
             <input type="hidden" name="q" value={query} />
             <button
               disabled={adding}
-              className="rounded-full border border-accent px-4 py-1.5 text-sm text-accent transition hover:bg-accent hover:text-accent-ink disabled:opacity-60"
+              className="rounded-full border border-ink px-4 py-1.5 text-sm text-ink transition hover:bg-ink hover:text-paper disabled:opacity-60"
             >
               {adding ? "标记中…" : "标记"}
             </button>
@@ -194,7 +194,7 @@ function ManualForm({ kind }: { kind: Kind }) {
         <textarea name="summary" rows={3} className="w-full" />
       </label>
       <div className="sm:col-span-2">
-        <button className="rounded-full bg-accent px-6 py-2 text-accent-ink transition hover:opacity-90">添加并标记</button>
+        <button className="rounded-full bg-ink px-6 py-2 text-paper transition hover:opacity-90">添加并标记</button>
       </div>
     </Form>
   );

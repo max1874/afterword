@@ -99,7 +99,7 @@ export default function Import() {
           <button
             onClick={run}
             disabled={running || (progress?.done ?? 0) === rows.length}
-            className="mt-5 rounded-full bg-accent px-6 py-2 text-accent-ink transition hover:opacity-90 disabled:opacity-60"
+            className="mt-5 rounded-full bg-ink px-6 py-2 text-paper transition hover:opacity-90 disabled:opacity-60"
           >
             {running ? "导入中…" : progress ? "已导入" : "开始导入"}
           </button>
@@ -109,7 +109,7 @@ export default function Import() {
       {progress && rows ? (
         <section className="mt-6 text-sm">
           <div className="h-1.5 overflow-hidden rounded-full bg-line">
-            <div className="h-full bg-accent transition-all" style={{ width: `${(progress.done / rows.length) * 100}%` }} />
+            <div className="h-full bg-ink transition-all" style={{ width: `${(progress.done / rows.length) * 100}%` }} />
           </div>
           <p className="mt-3">
             {progress.done} / {rows.length} · 新增 {progress.added} · 更新 {progress.updated}
@@ -123,7 +123,7 @@ export default function Import() {
             </ul>
           ) : null}
           {!running && progress.done === rows.length ? (
-            <Link to="/" className="mt-4 inline-block text-accent underline underline-offset-4">
+            <Link to="/" className="mt-4 inline-block text-ink underline underline-offset-4">
               去首页看看
             </Link>
           ) : null}

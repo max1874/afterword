@@ -98,7 +98,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
     <div className="mx-auto max-w-2xl space-y-12">
       <h1 className="text-3xl font-semibold">设置</h1>
       {params.get("recovered") ? (
-        <p className="rounded-lg border border-accent px-4 py-3 text-sm">
+        <p className="rounded-lg border border-ink px-4 py-3 text-sm">
           你用恢复码登录了。给这台设备添加一个通行密钥，下次就不用恢复码了；也可以重新生成一组恢复码。
         </p>
       ) : null}
@@ -291,7 +291,7 @@ function Sessions({ sessions }: { sessions: Data["sessions"] }) {
             <div>
               <p>
                 {describeAgent(s.user_agent)}
-                {s.current ? <span className="ml-2 text-sm text-accent">这台设备</span> : null}
+                {s.current ? <span className="ml-2 text-sm text-muted">这台设备</span> : null}
               </p>
               <p className="text-sm text-muted">
                 登录于 {formatTime(s.created_at)} · 最近活动 {formatTime(s.last_seen_at)}

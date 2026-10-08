@@ -18,7 +18,6 @@ import {
   unusedRecoveryCodes,
   usesRatings,
 } from "~/lib/accounts.server";
-import { fillDetails, fillDetailsNow } from "~/lib/details.server";
 import { addManualItem, parseMark, pickItem } from "~/lib/catalog.server";
 import {
   countByKindAndStatus,
@@ -29,9 +28,11 @@ import {
   listShelves,
   markedSourceIds,
   saveMark,
+  tileCovers,
   today,
   type Item,
 } from "~/lib/db.server";
+import { fillDetails, fillDetailsNow } from "~/lib/details.server";
 import { backdropSrc, coverSrc, factsOf, previewSrc } from "~/lib/format";
 import { IMPORT_BATCH_SIZE, importRows } from "~/lib/import.server";
 import { isKind, isStatus } from "~/lib/kinds";
@@ -152,12 +153,14 @@ on("GET", "users/:handle/shelves", async ({ params, url }) => {
   const user = await userOrThrow(params[0]);
   const kindParam = url.searchParams.get("kind");
   const kind = isKind(kindParam) ? kindParam : undefined;
-  const shelves = await listShelves({ userId: user.id, kind });
+  const [shelves, tiles] = await Promise.all([listShelves({ userId: user.id, kind }), tileCovers(user.id)]);
   fillDetails(shelves.doing);
   return json({
     doing: shelves.doing.map(withCover),
     done: shelves.done.map(withCover),
     wish: shelves.wish.map(withCover),
+    // Cover paths for the kind tiles, by kind and under "all".
+    tiles,
   });
 });
 

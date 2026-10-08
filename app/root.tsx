@@ -66,7 +66,7 @@ function Header() {
           <Link
             to="/add"
             title="记一笔"
-            className="grid h-9 place-items-center rounded-full bg-accent px-3.5 font-semibold text-accent-ink transition hover:opacity-85"
+            className="grid h-9 place-items-center rounded-full bg-ink px-3.5 font-semibold text-paper transition hover:opacity-85"
           >
             <span>
               ＋<span className="hidden sm:inline"> 记一笔</span>
@@ -131,7 +131,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       <h1 className="text-3xl font-semibold">{message}</h1>
       <p className="mt-3 text-muted">{details}</p>
       <p className="mt-6">
-        <Link to="/" className="text-accent underline underline-offset-4">
+        <Link to="/" className="text-ink underline underline-offset-4">
           回到首页
         </Link>
       </p>

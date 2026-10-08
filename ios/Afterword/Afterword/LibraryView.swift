@@ -73,9 +73,9 @@ struct LibraryView: View {
                     } label: {
                         Text(year.suffix(2))
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(on ? Color.accentInk : Color.accent)
+                            .foregroundStyle(on ? Color.paper : Color.muted)
                             .frame(width: 22, height: 17)
-                            .background(RoundedRectangle(cornerRadius: 4).fill(on ? Color.accent : .clear))
+                            .background(RoundedRectangle(cornerRadius: 4).fill(on ? Color.ink : .clear))
                     }
                     .buttonStyle(.plain)
                 }

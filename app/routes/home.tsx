@@ -27,7 +27,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       </p>
       <div className="mt-10 flex flex-wrap items-center gap-4">
         {needsSetup ? (
-          <Link to="/setup" className="rounded-full bg-accent px-6 py-2.5 text-accent-ink transition hover:opacity-90">
+          <Link to="/setup" className="rounded-full bg-ink px-6 py-2.5 text-paper transition hover:opacity-90">
             完成初始设置
           </Link>
         ) : (

@@ -69,7 +69,7 @@ export function AccountForm({
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <button
         disabled={busy}
-        className="w-full rounded-md bg-accent py-2 text-accent-ink transition hover:opacity-90 disabled:opacity-60"
+        className="w-full rounded-md bg-ink py-2 text-paper transition hover:opacity-90 disabled:opacity-60"
       >
         {busy ? "等待通行密钥…" : submitLabel}
       </button>

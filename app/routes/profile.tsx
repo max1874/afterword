@@ -6,7 +6,7 @@ import { PageTitle, profileHref } from "~/components/profile-nav";
 import { WideCard } from "~/components/wide-card";
 import { profileFromParam } from "~/lib/accounts.server";
 import { fillDetails } from "~/lib/details.server";
-import { countByKindAndStatus, listShelves } from "~/lib/db.server";
+import { countByKindAndStatus, listShelves, tileCovers } from "~/lib/db.server";
 import { backdropSrc, coverSrc, joinText, monthDay } from "~/lib/format";
 import { KINDS, kindLabel, statusLabel, total, type Kind, type Status } from "~/lib/kinds";
 import { getViewer } from "~/lib/session.server";
@@ -25,7 +25,11 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
   }
   const user = await profileFromParam(routeParams.profile);
   const viewer = await getViewer(request);
-  const [shelves, counts] = await Promise.all([listShelves({ userId: user.id }), countByKindAndStatus(user.id)]);
+  const [shelves, counts, tiles] = await Promise.all([
+    listShelves({ userId: user.id }),
+    countByKindAndStatus(user.id),
+    tileCovers(user.id),
+  ]);
   fillDetails(shelves.doing);
   const withArt = (items: typeof shelves.done) =>
     items.map((item) => ({ ...item, cover: coverSrc(item), backdrop: backdropSrc(item) }));
@@ -34,15 +38,15 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
     view: "home" as const,
     mine: viewer?.id === user.id,
     counts,
+    tiles,
     shelves: { doing: withArt(shelves.doing), done: withArt(shelves.done), wish: withArt(shelves.wish) },
   };
 }
 
-type Counts = Route.ComponentProps["loaderData"]["counts"];
 type ShelfItem = Route.ComponentProps["loaderData"]["shelves"]["done"][number];
 
 export default function ProfileHome({ loaderData }: Route.ComponentProps) {
-  const { profile, mine, counts, shelves } = loaderData;
+  const { profile, mine, counts, tiles, shelves } = loaderData;
   const { handle } = profile;
   const empty = !shelves.doing.length && !shelves.done.length && !shelves.wish.length;
 
@@ -54,7 +58,7 @@ export default function ProfileHome({ loaderData }: Route.ComponentProps) {
         <div className="py-20 text-center text-muted">
           <p className="text-xl">这里还空着。</p>
           {mine ? (
-            <Link to="/add" className="mt-4 inline-block text-accent">
+            <Link to="/add" className="mt-4 inline-block text-ink underline decoration-line underline-offset-4 hover:decoration-ink">
               记下第一部作品
             </Link>
           ) : null}
@@ -72,7 +76,7 @@ export default function ProfileHome({ loaderData }: Route.ComponentProps) {
           ) : null}
 
           <Row title="分类" to={profileHref(handle, "library", {})}>
-            <KindTiles counts={counts} handle={handle} />
+            <KindTiles handle={handle} covers={tiles} />
           </Row>
 
           {(["done", "wish"] as const).map((status) =>
@@ -104,8 +108,8 @@ function Row({ title, count, to, children }: { title: string; count?: number; to
           {title}
           {count !== undefined ? <span className="ml-2 text-[15px] font-medium text-muted">{count}</span> : null}
         </span>
-        <Link to={to} className="text-[15px] font-medium text-accent hover:opacity-75">
-          查看全部
+        <Link to={to} className="text-[15px] font-medium text-muted hover:text-ink">
+          查看全部 ›
         </Link>
       </h2>
       {/* Bleeds to the screen edge on phones so the next card peeks in. */}
@@ -116,28 +120,26 @@ function Row({ title, count, to, children }: { title: string; count?: number; to
   );
 }
 
-const TILE_COLOURS: Record<Kind | "all", string> = {
-  all: "from-[#8e8e93] to-[#48484a]",
-  screen: "from-[#0a84ff] to-[#5e5ce6]",
-  book: "from-[#ff9f0a] to-[#ff6a00]",
-  comic: "from-[#ff375f] to-[#bf5af2]",
-  game: "from-[#30d158] to-[#00a5b8]",
-};
-
-/** Bright tiles into the library by kind, like Infuse's Favorites. */
-function KindTiles({ counts, handle }: { counts: Counts; handle: string }) {
-  const tiles: [Kind | "all", string, number][] = [
-    ["all", "全部", total(counts)],
-    ...KINDS.map((k): [Kind, string, number] => [k, kindLabel(k), total(counts, k)]),
-  ];
-  return tiles.map(([key, label, n]) => (
+/** Tiles into the library by kind, like Infuse's Favorites, made of that kind's latest covers. */
+function KindTiles({ handle, covers }: { handle: string; covers: Record<Kind | "all", string[]> }) {
+  const tiles: [Kind | "all", string][] = [["all", "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])];
+  return tiles.map(([key, label]) => (
     <li key={key} className="w-[112px] shrink-0 snap-start sm:w-[168px]">
       <Link to={profileHref(handle, "library", { kind: key === "all" ? undefined : key })} className="group block">
-        <div
-          className={`relative grid h-[68px] place-items-center rounded-2xl bg-gradient-to-br text-white transition group-hover:-translate-y-0.5 sm:h-[84px] ${TILE_COLOURS[key]}`}
-        >
-          <KindIcon kind={key} />
-          <span className="absolute top-1.5 right-2.5 text-xs font-bold opacity-90">{n}</span>
+        <div className="relative h-[68px] overflow-hidden rounded-2xl bg-card shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.25)] transition group-hover:-translate-y-0.5 sm:h-[84px]">
+          {covers[key].length ? (
+            <>
+              <div aria-hidden className="absolute inset-0 flex">
+                {covers[key].map((src) => (
+                  <img key={src} src={src} alt="" referrerPolicy="no-referrer" className="h-full min-w-0 flex-1 object-cover" />
+                ))}
+              </div>
+              <div className="absolute inset-0 bg-black/50" />
+            </>
+          ) : null}
+          <div className={`relative grid h-full place-items-center ${covers[key].length ? "text-white" : "text-muted"}`}>
+            <KindIcon kind={key} />
+          </div>
         </div>
         <p className="mt-1.5 text-[13px] font-medium">{label}</p>
       </Link>

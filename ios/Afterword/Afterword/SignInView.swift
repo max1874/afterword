@@ -31,7 +31,7 @@ struct SignInView: View {
                 Task { await signIn() }
             } label: {
                 Text(busy ? "等待通行密钥…" : "用通行密钥登录")
-                    .foregroundStyle(Color.accentInk)
+                    .foregroundStyle(Color.paper)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
@@ -209,7 +209,7 @@ struct RecoveryCodesView: View {
             }
             Spacer()
             Button(action: onDone) {
-                Text("我已经保存好了").foregroundStyle(Color.accentInk).frame(maxWidth: .infinity).padding(.vertical, 6)
+                Text("我已经保存好了").foregroundStyle(Color.paper).frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

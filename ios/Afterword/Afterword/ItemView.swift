@@ -211,9 +211,8 @@ struct ItemView: View {
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 40)
-                        .foregroundStyle(on ? Color.accent : Color.ink)
-                        .background(Capsule().fill(on ? Color.accent.opacity(0.18) : Color.card))
-                        .overlay(Capsule().stroke(on ? Color.accent : .clear, lineWidth: 1))
+                        .foregroundStyle(on ? Color.paper : Color.ink)
+                        .background(Capsule().fill(on ? Color.ink : Color.card))
                 }
                 .buttonStyle(.plain)
             }

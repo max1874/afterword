@@ -26,7 +26,7 @@ struct AfterwordApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .tint(.accent)
+                .tint(Color.ink)
                 .onOpenURL { model.open($0) }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     if let url = activity.webpageURL { model.open(url) }

@@ -2,16 +2,14 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-/// iOS's own semantic colours with one orange accent, matching the web (`app/app.css`);
-/// everything follows light and dark mode.
+/// iOS's own semantic colours and no accent, matching the web (`app/app.css`): the covers
+/// and artwork carry all the colour, and everything follows light and dark mode.
 extension Color {
     static let paper = Color(uiColor: .systemBackground)
     static let card = Color(uiColor: .secondarySystemBackground)
     static let ink = Color(uiColor: .label)
     static let muted = Color(uiColor: .secondaryLabel)
     static let line = Color(uiColor: .separator)
-    static let accent = Color(uiColor: .systemOrange)
-    static let accentInk = Color(uiColor: .systemBackground)
     static let danger = Color(uiColor: .systemRed)
 }
 
@@ -132,7 +130,7 @@ struct Stars: View {
                 ForEach(1...5, id: \.self) { i in
                     Image(systemName: i <= rating ? "star.fill" : "star")
                         .font(.system(size: 10))
-                        .foregroundStyle(i <= rating ? Color.accent : Color.line)
+                        .foregroundStyle(i <= rating ? Color.ink : Color.line)
                 }
             }
             .accessibilityLabel("\(rating) 星")
@@ -151,7 +149,7 @@ struct StarInput: View {
                 } label: {
                     Image(systemName: i <= (rating ?? 0) ? "star.fill" : "star")
                         .font(.title2)
-                        .foregroundStyle(i <= (rating ?? 0) ? Color.accent : Color.muted)
+                        .foregroundStyle(i <= (rating ?? 0) ? Color.ink : Color.muted)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(i) 星")
