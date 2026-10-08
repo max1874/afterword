@@ -83,6 +83,28 @@ export async function listMarked(filter: MarkFilter & { page: number }) {
   return { items: results.slice(0, PAGE_SIZE), hasMore: results.length > PAGE_SIZE };
 }
 
+export const SHELF_SIZE = 20;
+
+/** The latest marks in each status, for the shelves on a person's page. */
+export async function listShelves(filter: Omit<MarkFilter, "status">) {
+  const shelves = await Promise.all(
+    (["doing", "done", "wish"] as const).map(async (status) => {
+      const { clause, params } = whereClause({ ...filter, status });
+      const { results } = await env.DB.prepare(
+        `SELECT i.*, m.status, m.rating, m.comment, m.marked_on
+         FROM marks m JOIN items i ON i.id = m.item_id
+         ${clause}
+         ORDER BY m.marked_on DESC, m.marked_at DESC
+         LIMIT ?`,
+      )
+        .bind(...params, SHELF_SIZE)
+        .all<MarkedItem>();
+      return [status, results] as const;
+    }),
+  );
+  return Object.fromEntries(shelves) as Record<Status, MarkedItem[]>;
+}
+
 export async function countByKindAndStatus(userId: string) {
   const { results } = await env.DB.prepare(
     `SELECT i.kind, m.status, COUNT(*) AS n

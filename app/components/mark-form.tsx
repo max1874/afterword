@@ -21,12 +21,12 @@ export function MarkForm({
   return (
     <Form method="post" className="space-y-5">
       <input type="hidden" name="intent" value="save" />
-      <fieldset className="flex flex-wrap gap-2">
+      <fieldset className="flex w-full max-w-sm rounded-[10px] bg-line/50 p-[3px] text-sm font-medium">
         <legend className="sr-only">状态</legend>
         {STATUSES.map((s) => (
           <label
             key={s}
-            className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm transition ${status === s ? "border-ink bg-ink text-paper" : "border-line text-muted hover:text-ink"}`}
+            className={`flex-1 cursor-pointer rounded-[8px] py-1.5 text-center transition ${status === s ? "bg-paper shadow-[0_1px_3px_rgba(0,0,0,0.12)] dark:bg-line" : "text-muted hover:text-ink"}`}
           >
             <input
               type="radio"
@@ -61,7 +61,7 @@ export function MarkForm({
 
       <button
         disabled={saving}
-        className="rounded-full bg-accent px-6 py-2 text-accent-ink transition hover:opacity-90 disabled:opacity-60"
+        className="rounded-full bg-accent px-6 py-2 font-semibold text-accent-ink transition hover:opacity-90 disabled:opacity-60"
       >
         {saving ? "保存中…" : "保存"}
       </button>

@@ -60,9 +60,13 @@
   --text-4xl--line-height: 1.08;
 }
 
-html,
-body {
+html {
   @apply bg-paper text-ink font-sans text-base antialiased;
+}
+
+body {
+  /* No background of its own, so cover backdrops at z-index -1 show; the page colour is on html. */
+  overflow-x: clip;
 }
 
 html {

@@ -11,6 +11,7 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { ProfileNav, useProfileNav } from "./components/profile-nav";
 import { getViewer } from "./lib/session.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -44,26 +45,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 function Header() {
   const root = useRoot();
+  const nav = useProfileNav();
   return (
-    <header className="mx-auto flex max-w-5xl items-center justify-between px-4 pt-8 pb-6 sm:px-6">
-      <Link to="/" className="flex items-center gap-3">
+    <header className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 pt-6 pb-8 sm:px-6">
+      <Link to="/" className="flex items-center gap-2.5">
         {/* The app icon, same as the favicon. */}
-        <img src="/favicon.svg" alt="" className="size-9" />
-        <span className="text-2xl font-semibold">后记</span>
+        <img src="/favicon.svg" alt="" className="size-8" />
+        <span className="text-[19px] font-semibold">后记</span>
       </Link>
+      {/* On phones the kinds take their own row under the logo. */}
+      {nav ? (
+        <div className="order-last w-full min-w-0 md:order-none md:flex md:w-auto md:flex-1 md:justify-center">
+          <ProfileNav data={nav} />
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
       {root?.viewer ? (
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="ml-auto flex items-center gap-4 text-sm md:ml-0">
           <Link
             to="/add"
-            className="rounded-full bg-ink px-4 py-1.5 text-paper transition hover:opacity-85"
+            className="rounded-full bg-ink px-4 py-1.5 font-semibold text-paper transition hover:opacity-85"
           >
             ＋ 记一笔
           </Link>
-          <Link to={`/@${root.viewer.handle}`} className="text-muted hover:text-ink">
-            {root.viewer.name}
-          </Link>
-          <Link to="/settings" className="text-muted hover:text-ink">
-            设置
+          <Link
+            to="/settings"
+            title="设置"
+            className="grid size-8 place-items-center rounded-full bg-gradient-to-b from-[#8e8e93] to-[#636366] text-[13px] font-semibold text-white"
+          >
+            {root.viewer.name.slice(0, 1).toUpperCase()}
           </Link>
         </nav>
       ) : null}
@@ -75,7 +86,7 @@ export default function App() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
         <Outlet />
       </main>
       <Footer />
@@ -86,7 +97,7 @@ export default function App() {
 function Footer() {
   const root = useRoot();
   return (
-    <footer className="mx-auto flex max-w-5xl justify-between border-t border-line px-4 py-6 text-xs text-muted sm:px-6">
+    <footer className="mx-auto flex max-w-6xl justify-between border-t border-line px-4 py-6 text-xs text-muted sm:px-6">
       <a href="https://github.com/max1874/afterword" className="hover:text-ink">
         后记 Afterword · 开源
       </a>

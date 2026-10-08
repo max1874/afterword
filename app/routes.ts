@@ -19,5 +19,6 @@ export default [
   route("items/:id", "routes/item-legacy.ts"),
   // `/@handle` pages; static paths above take precedence.
   route(":profile", "routes/profile.tsx"),
+  route(":profile/library", "routes/library.tsx"),
   route(":profile/items/:id", "routes/item.tsx"),
 ] satisfies RouteConfig;

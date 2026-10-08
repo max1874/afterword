@@ -22,6 +22,7 @@ import {
   deleteMark,
   getItem,
   listMarked,
+  listShelves,
   markedSourceIds,
   saveMark,
   today,
@@ -132,6 +133,18 @@ on("GET", "users/:handle/marks", async ({ params, url }) => {
     countByYear({ userId: user.id, kind, status }),
   ]);
   return json({ page, hasMore, yearCounts, items: items.map(withCover) });
+});
+
+on("GET", "users/:handle/shelves", async ({ params, url }) => {
+  const user = await userOrThrow(params[0]);
+  const kindParam = url.searchParams.get("kind");
+  const kind = isKind(kindParam) ? kindParam : undefined;
+  const shelves = await listShelves({ userId: user.id, kind });
+  return json({
+    doing: shelves.doing.map(withCover),
+    done: shelves.done.map(withCover),
+    wish: shelves.wish.map(withCover),
+  });
 });
 
 on("GET", "users/:handle/items/:id", async ({ request, params }) => {

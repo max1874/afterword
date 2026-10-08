@@ -13,7 +13,7 @@ export function Cover({
   const [failed, setFailed] = useState(false);
   return (
     <div
-      className={`relative aspect-[2/3] overflow-hidden rounded-[3px] bg-line shadow-[0_1px_2px_rgba(0,0,0,0.12)] ${className}`}
+      className={`relative aspect-[2/3] overflow-hidden rounded-[7px] bg-card shadow-[0_4px_14px_rgba(0,0,0,0.14),0_0_0_0.5px_rgba(0,0,0,0.08)] ${className}`}
     >
       {src && !failed ? (
         <img

@@ -37,3 +37,10 @@ export function statusLabel(status: Status, kind?: Kind) {
 export function genericStatusLabel(status: Status) {
   return { done: "已完成", doing: "进行中", wish: "计划中" }[status];
 }
+
+/** Marks matching a kind and status in per-kind-and-status counts. */
+export function total(counts: { kind: Kind; status: Status; n: number }[], kind?: Kind, status?: Status) {
+  return counts
+    .filter((c) => (!kind || c.kind === kind) && (!status || c.status === status))
+    .reduce((sum, c) => sum + c.n, 0);
+}

@@ -36,3 +36,8 @@ export function joinText(a: string, b: string) {
   const needsSpace = (LATIN.test(left) && CJK.test(right)) || (CJK.test(left) && LATIN.test(right));
   return needsSpace ? `${a} ${b}` : `${a}${b}`;
 }
+
+/** `2026-10-08` as 10月8日. */
+export function monthDay(day: string) {
+  return `${Number(day.slice(5, 7))}月${Number(day.slice(8, 10))}日`;
+}
