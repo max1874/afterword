@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A person's marks, newest first, grouped by year, with the web's filters.
-struct ProfileView: View {
+/// Everything a person marked, newest first, grouped by year, filtered by kind and status.
+struct LibraryView: View {
     @Environment(AppModel.self) private var model
     let handle: String
 
@@ -15,12 +15,17 @@ struct ProfileView: View {
     @State private var loading = false
     @State private var error: String?
 
+    init(handle: String, kind: Kind? = nil, status: Status? = nil) {
+        self.handle = handle
+        _kind = State(initialValue: kind)
+        _status = State(initialValue: status)
+    }
+
     private var mine: Bool { model.me?.handle == handle }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                header
+            LazyVStack(alignment: .leading, spacing: 0) {
                 filters
                 if let error, items.isEmpty {
                     ContentUnavailableView("没有加载出来", systemImage: "exclamationmark.triangle", description: Text(error))
@@ -36,66 +41,30 @@ struct ProfileView: View {
         }
         .background(Color.paper)
         .foregroundStyle(Color.ink)
-        .navigationTitle("@\(handle)")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("资料库")
+        .ownerSubtitle(mine ? nil : "\(profile?.name ?? handle) · @\(handle)")
         .refreshable { await reload() }
         .task(id: "\(handle)|\(kind?.rawValue ?? "")|\(status?.rawValue ?? "")|\(model.marksVersion)") { await reload() }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(profile.map { joinText($0.name, "的后记") } ?? " ")
-                .font(.system(size: 28, weight: .semibold))
-            if let profile {
-                Text("看过 \(profile.total(kind: .screen, status: .done)) 部影视 · 读过 \(profile.total(kind: .book, status: .done)) 本书 · 读过 \(profile.total(kind: .comic, status: .done)) 部漫画 · 玩过 \(profile.total(kind: .game, status: .done)) 款游戏")
-                    .font(.headline)
-                    .foregroundStyle(Color.muted)
-            }
-        }
-        .padding(.top, 8)
-        .padding(.bottom, 20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.line).frame(height: 1) }
-        .padding(.bottom, 20)
-    }
-
     private var filters: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 20) {
-                    kindButton(nil, "全部", count: nil)
-                    ForEach(Kind.allCases) { k in
-                        kindButton(k, k.label, count: profile?.total(kind: k))
-                    }
-                }
+            Picker("类型", selection: $kind) {
+                Text("全部").tag(Kind?.none)
+                ForEach(Kind.allCases) { Text($0.label).tag(Kind?.some($0)) }
             }
+            .pickerStyle(.segmented)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    chip(nil, "全部")
+                    chip(nil, "全部 \(profile?.total(kind: kind) ?? 0)")
                     ForEach(Status.allCases) { s in
                         chip(s, "\(s.label(for: kind)) \(profile?.total(kind: kind, status: s) ?? 0)")
                     }
                 }
             }
+            .scrollClipDisabled()
         }
         .padding(.bottom, 24)
-    }
-
-    private func kindButton(_ value: Kind?, _ label: String, count: Int?) -> some View {
-        Button {
-            kind = value
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(label).font(.title3.weight(.semibold))
-                if let count { Text("\(count)").font(.caption2).foregroundStyle(Color.muted).baselineOffset(8) }
-            }
-            .foregroundStyle(kind == value ? Color.ink : Color.muted)
-            .padding(.bottom, 4)
-            .overlay(alignment: .bottom) {
-                if kind == value { Rectangle().fill(Color.accent).frame(height: 2) }
-            }
-        }
-        .buttonStyle(.plain)
     }
 
     private func chip(_ value: Status?, _ label: String) -> some View {
@@ -103,12 +72,11 @@ struct ProfileView: View {
             status = value
         } label: {
             Text(label)
-                .font(.subheadline)
+                .font(.subheadline.weight(status == value ? .semibold : .regular))
                 .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .foregroundStyle(status == value ? Color.paper : Color.muted)
-                .background(Capsule().fill(status == value ? Color.ink : Color.clear))
-                .overlay(Capsule().stroke(status == value ? Color.ink : Color.line))
+                .padding(.vertical, 7)
+                .foregroundStyle(status == value ? Color.paper : Color.ink)
+                .background(Capsule().fill(status == value ? Color.ink : Color.card))
         }
         .buttonStyle(.plain)
     }
@@ -136,11 +104,14 @@ struct ProfileView: View {
     private func yearSection(_ year: String) -> some View {
         let group = items.filter { ($0.markedOn ?? "").hasPrefix(year) }
         return VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(year).font(.system(size: 28, weight: .semibold))
-                Text("\(yearCounts[year] ?? group.count) 条").font(.subheadline).foregroundStyle(Color.muted)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(year).font(.title2.bold())
+                Text("\(yearCounts[year] ?? group.count) 条").font(.footnote.weight(.medium)).foregroundStyle(Color.muted)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14, alignment: .top), count: 3), spacing: 22) {
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.line).frame(height: 0.5) }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: 3), spacing: 22) {
                 ForEach(group) { item in
                     NavigationLink(value: Route.item(handle: handle, id: item.id)) {
                         card(item)
@@ -154,20 +125,21 @@ struct ProfileView: View {
     }
 
     private func card(_ item: MarkedItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             CoverImage(path: item.cover, title: item.title)
-            // Two lines reserved so the meta line aligns across a row.
             Text(item.title)
-                .font(.footnote.weight(.semibold))
-                .lineLimit(2, reservesSpace: true)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .padding(.top, 8)
             HStack(spacing: 4) {
-                Text(String((item.markedOn ?? "").dropFirst(5)))
-                if status == nil, let s = item.status { Text("· \(s.label(for: item.kind))") }
+                if status == nil, let s = item.status { Text("\(s.label(for: item.kind)) ·") }
+                Text(monthDay(item.markedOn))
                 Stars(rating: item.rating)
             }
             .font(.caption2)
             .foregroundStyle(Color.muted)
             .lineLimit(1)
+            .padding(.top, 2)
         }
         .contentShape(Rectangle())
     }

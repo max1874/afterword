@@ -1,23 +1,32 @@
 import Foundation
 import Observation
 
-/// Pages reachable by navigation and by universal links (`/@handle`, `/@handle/items/:id`).
+/// Pages reachable by navigation and by universal links (`/@handle`, `/@handle/library`, `/@handle/items/:id`).
 enum Route: Hashable {
     case profile(String)
+    case library(handle: String, kind: Kind?, status: Status?)
     case item(handle: String, id: String)
 
     init?(url: URL) {
         let parts = url.pathComponents.filter { $0 != "/" }
         guard let first = parts.first, first.hasPrefix("@"), first.count > 1 else { return nil }
         let handle = String(first.dropFirst()).lowercased()
-        if parts.count == 1 { self = .profile(handle); return }
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let kind = query.first { $0.name == "kind" }?.value.flatMap(Kind.init(rawValue:))
+        let status = query.first { $0.name == "status" }?.value.flatMap(Status.init(rawValue:))
+        if parts.count == 1 {
+            // Filtered lists used to live on the profile; they are in the library now.
+            self = status == nil ? .profile(handle) : .library(handle: handle, kind: kind, status: status)
+            return
+        }
+        if parts.count == 2, parts[1] == "library" { self = .library(handle: handle, kind: kind, status: status); return }
         if parts.count == 3, parts[1] == "items" { self = .item(handle: handle, id: parts[2]); return }
         return nil
     }
 }
 
 enum AppTab: Hashable {
-    case mine, add, settings
+    case home, library, settings, add
 }
 
 /// Who is signed in, and the sign-in flows.
@@ -27,8 +36,9 @@ final class AppModel {
     private let passkeys = Passkeys()
 
     var me: Me?
-    var tab: AppTab = .mine
-    var minePath: [Route] = []
+    var tab: AppTab = .home
+    var homePath: [Route] = []
+    var libraryPath: [Route] = []
     /// Bumped whenever marks change, so lists reload.
     var marksVersion = 0
     /// Marked items seen in lists, by `handle/id`, so item pages open without waiting.
@@ -101,14 +111,15 @@ final class AppModel {
         api.setToken(nil)
         me = nil
         knownItems = [:]
-        minePath = []
-        tab = .mine
+        homePath = []
+        libraryPath = []
+        tab = .home
     }
 
     func open(_ url: URL) {
         guard let route = Route(url: url) else { return }
-        tab = .mine
-        minePath.append(route)
+        tab = .home
+        homePath.append(route)
     }
 
     private func finishSignIn(_ token: String?) async throws {

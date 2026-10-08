@@ -12,6 +12,7 @@ struct AfterwordApp: App {
         if let token = defaults.string(forKey: "AfterwordToken") { model.api.setToken(token) }
         switch defaults.string(forKey: "AfterwordTab") {
         case "add": model.tab = .add
+        case "library": model.tab = .library
         case "settings": model.tab = .settings
         default: break
         }
@@ -44,22 +45,22 @@ struct RootView: View {
                 SignInView()
             } else if let me = model.me {
                 TabView(selection: $model.tab) {
-                    Tab("我的", systemImage: "books.vertical", value: .mine) {
-                        NavigationStack(path: $model.minePath) {
-                            ProfileView(handle: me.handle)
-                                .navigationDestination(for: Route.self) { route in
-                                    switch route {
-                                    case .profile(let handle): ProfileView(handle: handle)
-                                    case .item(let handle, let id): ItemView(handle: handle, id: id)
-                                    }
-                                }
+                    Tab("首页", systemImage: "house", value: .home) {
+                        NavigationStack(path: $model.homePath) {
+                            HomeView(handle: me.handle).appRoutes()
                         }
                     }
-                    Tab("记一笔", systemImage: "plus.circle", value: .add) {
-                        NavigationStack { AddView() }
+                    Tab("资料库", systemImage: "books.vertical", value: .library) {
+                        NavigationStack(path: $model.libraryPath) {
+                            LibraryView(handle: me.handle).appRoutes()
+                        }
                     }
                     Tab("设置", systemImage: "gearshape", value: .settings) {
                         NavigationStack { SettingsView() }
+                    }
+                    // 记一笔 starts with a search, so it is the tab bar's search button.
+                    Tab("记一笔", systemImage: "plus", value: .add, role: .search) {
+                        NavigationStack { AddView() }
                     }
                 }
             } else if let error = model.loadError {
@@ -83,5 +84,23 @@ struct RootView: View {
                 model.freshRecoveryCodes = nil
             }
         }
+    }
+}
+
+extension View {
+    /// Where links inside the tabs lead.
+    func appRoutes() -> some View {
+        navigationDestination(for: Route.self) { route in
+            switch route {
+            case .profile(let handle): HomeView(handle: handle)
+            case .library(let handle, let kind, let status): LibraryView(handle: handle, kind: kind, status: status)
+            case .item(let handle, let id): ItemView(handle: handle, id: id)
+            }
+        }
+    }
+
+    /// Whose page this is, under the title, on someone else's pages.
+    @ViewBuilder func ownerSubtitle(_ text: String?) -> some View {
+        if let text { navigationSubtitle(text) } else { self }
     }
 }

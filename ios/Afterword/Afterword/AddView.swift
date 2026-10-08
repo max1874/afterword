@@ -57,7 +57,7 @@ struct AddView: View {
             }
         }
         .navigationTitle("记一笔")
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品名，中文、原名都可以")
+        .searchable(text: $query, prompt: "作品名，中文、原名都可以")
         .onSubmit(of: .search) { Task { await search() } }
         .onChange(of: kind) { if !searched.isEmpty { Task { await search() } } }
         #if DEBUG

@@ -32,7 +32,7 @@ struct CoverImage: View {
 
     var body: some View {
         Rectangle()
-            .fill(Color.line.opacity(0.6))
+            .fill(Color.card)
             .aspectRatio(2 / 3, contentMode: .fit)
             .overlay {
                 if let image {
@@ -45,17 +45,19 @@ struct CoverImage: View {
                         .padding(6)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.line, lineWidth: 0.5))
-            .task(id: path) { await load() }
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.08), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.14), radius: 7, y: 4)
+            .task(id: path) { image = await Self.image(for: path, api: model.api) }
     }
 
-    private func load() async {
-        guard let path, let url = model.api.url(for: path) else { image = nil; return }
-        if let cached = CoverCache.shared.object(forKey: path as NSString) { image = cached; return }
-        guard let data = try? await model.api.data(from: url), let loaded = await Self.thumbnail(data) else { return }
+    /// The cover for a path, decoded once and kept in memory.
+    static func image(for path: String?, api: APIClient) async -> UIImage? {
+        guard let path, let url = api.url(for: path) else { return nil }
+        if let cached = CoverCache.shared.object(forKey: path as NSString) { return cached }
+        guard let data = try? await api.data(from: url), let loaded = await thumbnail(data) else { return nil }
         CoverCache.shared.setObject(loaded, forKey: path as NSString)
-        image = loaded
+        return loaded
     }
 
     /// Decoded and scaled down off the main thread; covers are up to 1024px tall and
@@ -71,6 +73,40 @@ struct CoverImage: View {
         ]
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
         return UIImage(cgImage: image)
+    }
+}
+
+/// A cover blurred into a wash of its colours, fading into the page; behind the top of item pages.
+struct CoverBackdrop: View {
+    @Environment(AppModel.self) private var model
+    let path: String?
+
+    @State private var image: UIImage?
+
+    init(path: String?) {
+        self.path = path
+        _image = State(initialValue: path.flatMap { CoverCache.shared.object(forKey: $0 as NSString) })
+    }
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .blur(radius: 50)
+                        .saturation(1.4)
+                        .opacity(0.55)
+                        .transition(.opacity)
+                }
+            }
+            .clipped()
+            .overlay(LinearGradient(colors: [.clear, Color.paper], startPoint: UnitPoint(x: 0.5, y: 0.35), endPoint: .bottom))
+            .task(id: path) {
+                let loaded = await CoverImage.image(for: path, api: model.api)
+                withAnimation(.easeOut(duration: 0.25)) { image = loaded }
+            }
     }
 }
 

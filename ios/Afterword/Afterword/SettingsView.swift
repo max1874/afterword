@@ -205,7 +205,8 @@ struct SettingsView: View {
             name = saved.name
             handle = saved.handle
             await model.loadMe()
-            model.minePath = []
+            model.homePath = []
+            model.libraryPath = []
             profileMessage = "已保存"
         }
     }

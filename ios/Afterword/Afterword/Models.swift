@@ -110,6 +110,21 @@ nonisolated struct MarksPage: Decodable {
     let items: [MarkedItem]
 }
 
+/// The latest marks in each status, for the rows on a person's home.
+nonisolated struct Shelves: Decodable {
+    let doing: [MarkedItem]
+    let done: [MarkedItem]
+    let wish: [MarkedItem]
+
+    subscript(status: Status) -> [MarkedItem] {
+        switch status {
+        case .doing: doing
+        case .done: done
+        case .wish: wish
+        }
+    }
+}
+
 nonisolated struct ItemResponse: Decodable {
     let mine: Bool
     let item: MarkedItem
@@ -213,4 +228,10 @@ nonisolated func shortDate(_ sqlTime: String?) -> String {
     parser.dateFormat = "yyyy-MM-dd HH:mm:ss"
     guard let date = parser.date(from: sqlTime) else { return String(sqlTime.prefix(10)) }
     return date.formatted(date: .abbreviated, time: .omitted)
+}
+
+/// `2026-10-08` as 10月8日.
+nonisolated func monthDay(_ day: String?) -> String {
+    guard let day, day.count >= 10, let month = Int(day.dropFirst(5).prefix(2)), let date = Int(day.dropFirst(8).prefix(2)) else { return "" }
+    return "\(month)月\(date)日"
 }
