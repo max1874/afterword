@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { data, Form, Link, redirect, useNavigation } from "react-router";
 
 import type { Route } from "./+types/item";
@@ -5,10 +6,10 @@ import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
 import { profileFromParam, usesRatings } from "~/lib/accounts.server";
-import { fillBackdrops } from "~/lib/backdrops.server";
+import { fillDetailsNow } from "~/lib/details.server";
 import { parseMark } from "~/lib/catalog.server";
 import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
-import { backdropSrc, coverSrc, joinText, monthDay } from "~/lib/format";
+import { backdropSrc, coverSrc, factsOf, joinText, monthDay } from "~/lib/format";
 import { creatorLabel, isStatus, kindLabel, STATUSES, statusLabel, type Kind, type Status } from "~/lib/kinds";
 import { getViewer } from "~/lib/session.server";
 
@@ -27,12 +28,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const user = await profileFromParam(params.profile);
   const viewer = await getViewer(request);
   const mine = viewer?.id === user.id;
-  const item = await getItem(params.id, user.id);
+  let item = await getItem(params.id, user.id);
   // Someone else's page only shows what they marked; your own also offers unmarked items to mark.
   if (!item || (!mine && !item.status)) throw data(null, { status: 404 });
-  fillBackdrops([item]);
+  // The first visit waits briefly for the summary, so the page is not empty.
+  if (await fillDetailsNow(item)) item = (await getItem(params.id, user.id)) ?? item;
   return {
-    item: { ...item, cover: coverSrc(item), backdrop: backdropSrc(item) },
+    item: { ...item, cover: coverSrc(item), backdrop: backdropSrc(item), facts: factsOf(item) },
     profile: { handle: user.handle, name: user.name },
     mine,
     ratings: usesRatings(user),
@@ -124,7 +126,21 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
         {item.summary ? (
           <section>
             <h2 className="mb-2 text-xl font-bold">简介</h2>
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-muted">{item.summary}</p>
+            <Summary text={item.summary} />
+          </section>
+        ) : null}
+
+        {item.facts.length ? (
+          <section>
+            <h2 className="mb-2 text-xl font-bold">资料</h2>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-[15px]">
+              {item.facts.map(([label, value]) => (
+                <div key={label} className="contents">
+                  <dt className="text-muted">{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
         ) : null}
 
@@ -175,6 +191,22 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
         </p>
       </div>
     </article>
+  );
+}
+
+/** Long Douban intros start folded to a few lines, as in the app. */
+function Summary({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 120 || text.split("\n").length > 4;
+  return (
+    <>
+      <p className={`whitespace-pre-wrap text-[15px] leading-relaxed text-muted ${long && !open ? "line-clamp-5" : ""}`}>{text}</p>
+      {long && !open ? (
+        <button onClick={() => setOpen(true)} className="mt-1 text-[15px] font-semibold hover:text-accent">
+          更多
+        </button>
+      ) : null}
+    </>
   );
 }
 

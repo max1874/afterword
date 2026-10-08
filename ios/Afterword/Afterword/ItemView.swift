@@ -126,18 +126,33 @@ struct ItemView: View {
                     }
                 }
                 if let summary = item.summary {
+                    // Same rule as the web: short intros are shown whole, without 更多.
+                    let folded = !summaryExpanded && (summary.count > 120 || summary.split(separator: "\n").count > 4)
                     section("简介") {
                         Text(summary)
                             .font(.subheadline)
                             .foregroundStyle(Color.muted)
                             .lineSpacing(3)
-                            .lineLimit(summaryExpanded ? nil : 5)
+                            .lineLimit(folded ? 5 : nil)
                             .textSelection(.enabled)
-                        if !summaryExpanded {
+                        if folded {
                             Button("更多") { withAnimation { summaryExpanded = true } }
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.ink)
                         }
+                    }
+                }
+                if let facts = item.facts?.filter({ $0.count == 2 }), !facts.isEmpty {
+                    section("资料") {
+                        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 20, verticalSpacing: 8) {
+                            ForEach(facts, id: \.self) { row in
+                                GridRow {
+                                    Text(row[0]).foregroundStyle(Color.muted)
+                                    Text(row[1]).textSelection(.enabled)
+                                }
+                            }
+                        }
+                        .font(.subheadline)
                     }
                 }
                 if !mine, let me = model.me {

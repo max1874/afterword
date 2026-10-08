@@ -15,10 +15,13 @@ export type Item = {
   source: string;
   source_id: string | null;
   source_url: string | null;
-  /** Landscape artwork; absent until migration 0004, null until looked up (see backdrops.server). */
+  /** Landscape artwork; absent until migration 0004, null until looked up (see details.server). */
   backdrop_url?: string | null;
   backdrop_key?: string | null;
-  backdrop_checked_at?: string | null;
+  /** JSON [label, value] pairs from Douban (see details.server); absent until migration 0006. */
+  facts?: string | null;
+  /** When the details lookup ran; absent until migration 0006, null until then. */
+  details_checked_at?: string | null;
 };
 
 export type Mark = {

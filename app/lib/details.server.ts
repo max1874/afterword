@@ -2,45 +2,149 @@ import { env, waitUntil } from "cloudflare:workers";
 
 import { storeCover } from "./covers.server";
 import type { Item } from "./db.server";
-import { USER_AGENT } from "./providers.server";
+import { clip, DOUBAN_MOBILE_HEADERS, USER_AGENT } from "./providers.server";
 
 /**
- * Landscape artwork for the wide cards: TMDB backdrops for films and series,
- * Steam's library hero for games. Looked up once per item, in the background,
- * and copied into R2 like covers; books and comics have none and keep using
- * their cover.
+ * What a Douban import leaves out, looked up once per item in the background:
+ * the summary and a few facts from Douban's own app API, and landscape artwork
+ * for the wide cards (TMDB backdrops for films and series, Steam's library hero
+ * for games), copied into R2 like covers.
  */
 
-type BackdropItem = Pick<Item, "id" | "kind" | "title" | "original_title" | "year" | "source" | "source_id"> & {
-  backdrop_checked_at?: string | null;
+type DetailsItem = Pick<
+  Item,
+  "id" | "kind" | "title" | "original_title" | "year" | "source" | "source_id" | "summary"
+> & {
+  backdrop_key?: string | null;
+  facts?: string | null;
+  details_checked_at?: string | null;
 };
 
 /** Items looked up per request, to stay well inside the Workers subrequest limit. */
-const PER_REQUEST = 6;
+const PER_REQUEST = 4;
 
-/** Starts lookups for items that have never been looked up; the page shows their covers meanwhile. */
-export function fillBackdrops(items: BackdropItem[]) {
-  const pending = items.filter((i) => (i.kind === "screen" || i.kind === "game") && !i.backdrop_checked_at);
-  if (pending.length) waitUntil(Promise.all(pending.slice(0, PER_REQUEST).map(fill)));
+const needsLookup = (item: DetailsItem) => item.details_checked_at === null;
+
+/** Starts lookups for items never looked up; the page shows what it has meanwhile. */
+export function fillDetails(items: DetailsItem[]) {
+  const pending = items.filter(needsLookup);
+  if (pending.length) waitUntil(Promise.all(pending.slice(0, PER_REQUEST).map((item) => fill(item).done)));
 }
 
-async function fill(item: BackdropItem) {
-  try {
-    // Claim the item first, so overlapping requests do not look it up twice.
-    const claim = await env.DB.prepare(
-      "UPDATE items SET backdrop_checked_at = datetime('now') WHERE id = ? AND backdrop_checked_at IS NULL",
-    )
-      .bind(item.id)
-      .run();
-    if (!claim.meta.changes) return;
-    const url = item.kind === "screen" ? await tmdbBackdrop(item) : await steamHero(item);
-    if (!url) return;
-    const key = await storeCover(url);
-    await env.DB.prepare("UPDATE items SET backdrop_url = ?, backdrop_key = ? WHERE id = ?").bind(url, key, item.id).run();
-  } catch (error) {
-    // Before the migration adds the columns this fails quietly, and the cards keep their covers.
-    console.warn("backdrop lookup failed", item.id, error);
-  }
+/**
+ * Looks one item up and waits up to `ms` for its summary, so a page opened for the
+ * first time is not empty; the artwork, which takes longer, finishes in the background.
+ * Returns whether a lookup ran, so the caller knows to read the item again.
+ */
+export async function fillDetailsNow(item: DetailsItem, ms = 3500) {
+  if (!needsLookup(item)) return false;
+  const { text, done } = fill(item);
+  waitUntil(done);
+  await Promise.race([text, new Promise((resolve) => setTimeout(resolve, ms))]);
+  return true;
+}
+
+function fill(item: DetailsItem) {
+  // Claim the item first, so overlapping requests do not look it up twice.
+  const claimed = env.DB.prepare(
+    "UPDATE items SET details_checked_at = datetime('now') WHERE id = ? AND details_checked_at IS NULL",
+  )
+    .bind(item.id)
+    .run()
+    .then((claim) => claim.meta.changes > 0);
+  const quietly = (step: (item: DetailsItem) => Promise<void>) =>
+    claimed
+      .then((ok) => (ok ? step(item) : undefined))
+      // Before migration 0006 the claim fails quietly, and pages keep what they have.
+      .catch((error) => console.warn("details lookup failed", item.id, error));
+  const text = quietly(fillText);
+  return { text, done: Promise.all([text, quietly(fillBackdrop)]) };
+}
+
+async function fillText(item: DetailsItem) {
+  if (item.summary && item.facts) return;
+  const found = await doubanDetails(item);
+  if (!found) return;
+  await env.DB.prepare("UPDATE items SET summary = COALESCE(NULLIF(summary, ''), ?), facts = COALESCE(facts, ?) WHERE id = ?")
+    .bind(found.summary, found.facts.length ? JSON.stringify(found.facts) : null, item.id)
+    .run();
+}
+
+async function fillBackdrop(item: DetailsItem) {
+  if (item.backdrop_key || (item.kind !== "screen" && item.kind !== "game")) return;
+  const url = item.kind === "screen" ? await tmdbBackdrop(item) : await steamHero(item);
+  if (!url) return;
+  const key = await storeCover(url);
+  await env.DB.prepare("UPDATE items SET backdrop_url = ?, backdrop_key = ? WHERE id = ?").bind(url, key, item.id).run();
+}
+
+// Douban: the app's API answers for the ids Douban imports carry ("movie/36449242",
+// "book/…", "game/…"); the web pages send servers to a captcha instead.
+
+type DoubanSubject = {
+  intro?: string;
+  genres?: string[];
+  countries?: string[];
+  pubdate?: string[];
+  durations?: string[];
+  episodes_count?: number;
+  is_tv?: boolean;
+  press?: string[];
+  pages?: string[];
+  translator?: string[];
+  platforms?: { cn_name?: string; name?: string }[];
+  developers?: string[];
+  publishers?: string[];
+  release_date?: string;
+};
+
+/** Label and value pairs shown under 资料 on item pages. */
+export type Facts = [string, string][];
+
+async function doubanDetails(item: DetailsItem): Promise<{ summary: string | null; facts: Facts } | null> {
+  if (item.source.split(":")[0] !== "douban" || !item.source_id) return null;
+  // Films and series share ids; the API redirects a series' movie/ path to tv/.
+  const res = await fetch(`https://m.douban.com/rexxar/api/v2/${item.source_id}`, { headers: DOUBAN_MOBILE_HEADERS });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const s = (await res.json()) as DoubanSubject;
+  const join = (values: (string | null | undefined)[] | undefined, sep = " / ") =>
+    values?.filter(Boolean).slice(0, 4).join(sep) || null;
+  const rows: [string, string | null][] =
+    item.kind === "book" || item.kind === "comic"
+      ? [
+          ["出版社", join(s.press)],
+          ["出版", join(s.pubdate)],
+          ["页数", join(s.pages)],
+          ["译者", join(s.translator)],
+        ]
+      : item.kind === "game"
+        ? [
+            ["类型", join(s.genres)],
+            ["平台", join(s.platforms?.map((p) => p.cn_name || p.name))],
+            ["开发", join(s.developers)],
+            ["发行", join(s.publishers)],
+            ["发售", s.release_date || null],
+          ]
+        : [
+            ["类型", join(s.genres)],
+            ["地区", join(s.countries)],
+            [s.is_tv ? "首播" : "上映", join(s.pubdate)],
+            ["集数", s.is_tv && s.episodes_count ? String(s.episodes_count) : null],
+            ["片长", join(s.durations)],
+          ];
+  return {
+    summary: clip(tidy(s.intro)),
+    facts: rows.filter((row): row is [string, string] => Boolean(row[1])),
+  };
+}
+
+/** Douban intros indent paragraphs with ideographic spaces and leave stray blank lines. */
+function tidy(text: string | undefined) {
+  return text
+    ?.split("\n")
+    .map((line) => line.replace(/^[\s\u3000]+|[\s\u3000]+$/g, ""))
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Season, part and broadcast-run markers: 第二季, Season 3, 第2期, 2期, 年番1, Part 2, III. */
@@ -58,7 +162,7 @@ export function normalizeName(name: string | null | undefined) {
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
-function names(item: BackdropItem) {
+function names(item: DetailsItem) {
   return [...new Set([item.title, item.original_title].map(normalizeName).filter((n) => n.length >= 2))];
 }
 
@@ -88,7 +192,7 @@ async function tmdb<T>(path: string, params: Record<string, string>) {
 
 const tmdbImage = (path: string) => `https://image.tmdb.org/t/p/w1280${path}`;
 
-async function tmdbBackdrop(item: BackdropItem) {
+async function tmdbBackdrop(item: DetailsItem) {
   // Items picked from TMDB know their id.
   if (item.source === "tmdb" && item.source_id) {
     const hit = await tmdb<TmdbHit>(item.source_id, {});
@@ -156,7 +260,7 @@ async function seasonStill(seriesId: number, rest: string) {
 
 type SteamHit = { type: string; name: string; id: number };
 
-async function steamHero(item: BackdropItem) {
+async function steamHero(item: DetailsItem) {
   const wanted = names(item);
   const searches: [string | null, string, string][] = [
     [item.title, "schinese", "CN"],

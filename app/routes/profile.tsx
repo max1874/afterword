@@ -5,7 +5,7 @@ import { Cover } from "~/components/cover";
 import { PageTitle, profileHref } from "~/components/profile-nav";
 import { WideCard } from "~/components/wide-card";
 import { profileFromParam } from "~/lib/accounts.server";
-import { fillBackdrops } from "~/lib/backdrops.server";
+import { fillDetails } from "~/lib/details.server";
 import { countByKindAndStatus, listShelves } from "~/lib/db.server";
 import { backdropSrc, coverSrc, joinText, monthDay } from "~/lib/format";
 import { KINDS, kindLabel, statusLabel, total, type Kind, type Status } from "~/lib/kinds";
@@ -26,7 +26,7 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
   const user = await profileFromParam(routeParams.profile);
   const viewer = await getViewer(request);
   const [shelves, counts] = await Promise.all([listShelves({ userId: user.id }), countByKindAndStatus(user.id)]);
-  fillBackdrops(shelves.doing);
+  fillDetails(shelves.doing);
   const withArt = (items: typeof shelves.done) =>
     items.map((item) => ({ ...item, cover: coverSrc(item), backdrop: backdropSrc(item) }));
   return {

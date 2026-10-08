@@ -100,6 +100,8 @@ nonisolated struct MarkedItem: Decodable, Identifiable, Hashable {
     let cover: String?
     /// Landscape artwork (TMDB backdrop, Steam hero) when the server found some.
     let backdrop: String?
+    /// Label and value pairs for 资料 (genres, episodes, publisher, platforms…); older servers omit it.
+    let facts: [[String]]?
     let status: Status?
     let rating: Int?
     let comment: String?

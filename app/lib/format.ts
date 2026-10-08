@@ -47,3 +47,14 @@ export function joinText(a: string, b: string) {
 export function monthDay(day: string) {
   return `${Number(day.slice(5, 7))}月${Number(day.slice(8, 10))}日`;
 }
+
+/** The facts an item page lists under 资料, as label/value pairs; stored as JSON. */
+export function factsOf(item: { facts?: string | null }): [string, string][] {
+  if (!item.facts) return [];
+  try {
+    const rows = JSON.parse(item.facts) as unknown;
+    return Array.isArray(rows) ? rows.filter((r): r is [string, string] => Array.isArray(r) && r.length === 2) : [];
+  } catch {
+    return [];
+  }
+}

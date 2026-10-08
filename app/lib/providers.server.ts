@@ -13,6 +13,13 @@ export const DOUBAN_HEADERS = {
   Referer: "https://www.douban.com/",
 };
 
+/** Douban's app API (m.douban.com/rexxar) answers a phone browser coming from its mobile site. */
+export const DOUBAN_MOBILE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+  Referer: "https://m.douban.com/",
+};
+
 export function isDoubanImage(url: string) {
   try {
     return new URL(url).hostname.endsWith(".doubanio.com");
@@ -38,7 +45,7 @@ type Provider = {
 
 const SUMMARY_LIMIT = 2000;
 
-function clip(text: string | null | undefined) {
+export function clip(text: string | null | undefined) {
   const trimmed = text?.trim();
   if (!trimmed) return null;
   return trimmed.length > SUMMARY_LIMIT ? `${trimmed.slice(0, SUMMARY_LIMIT)}…` : trimmed;
