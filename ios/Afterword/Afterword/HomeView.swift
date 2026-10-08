@@ -1,38 +1,45 @@
 import SwiftUI
 
-/// A person's home: what they have done per kind, then rows of covers in progress, recently done and planned.
+/// A person's home, laid out like Infuse: wide cards for what is in progress, bright tiles
+/// into the library by kind, then rows of recently done and planned.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     let handle: String
 
     @State private var profile: Profile?
-    @State private var kind: Kind?
     @State private var shelves: Shelves?
     @State private var error: String?
-    /// The kind the shelves on screen belong to; another one starts from its own cache.
-    @State private var shownKey = ""
 
     private var mine: Bool { model.me?.handle == handle }
-    private var key: String { "\(handle)|\(kind?.rawValue ?? "")" }
+    private var shelvesPath: String { "users/\(handle)/shelves" }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Picker("类型", selection: $kind) {
-                    Text("全部").tag(Kind?.none)
-                    ForEach(Kind.allCases) { Text($0.label).tag(Kind?.some($0)) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-
-                stats.padding(.horizontal, 16).padding(.top, 16)
-
                 if let shelves {
                     if Status.shelfOrder.allSatisfy({ shelves[$0].isEmpty }) {
                         empty
                     } else {
-                        ForEach(Status.shelfOrder, id: \.self) { status in
-                            if !shelves[status].isEmpty { shelf(status, shelves[status]) }
+                        if !shelves.doing.isEmpty {
+                            row("进行中", count: profile?.total(status: .doing), to: .library(handle: handle, kind: nil, status: .doing)) {
+                                ForEach(shelves.doing) { item in
+                                    NavigationLink(value: Route.item(handle: handle, id: item.id)) {
+                                        WideCard(item: item).frame(width: 300)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        row("分类", to: .library(handle: handle, kind: nil, status: nil)) { kindTiles }
+                        if !shelves.done.isEmpty {
+                            row("最近完成", count: profile?.total(status: .done), to: .library(handle: handle, kind: nil, status: .done)) {
+                                ForEach(shelves.done) { posterCard($0, status: .done) }
+                            }
+                        }
+                        if !shelves.wish.isEmpty {
+                            row("计划中", count: profile?.total(status: .wish), to: .library(handle: handle, kind: nil, status: .wish)) {
+                                ForEach(shelves.wish) { posterCard($0, status: .wish) }
+                            }
                         }
                     }
                 } else if let error {
@@ -46,103 +53,97 @@ struct HomeView: View {
         }
         .background(Color.paper)
         .foregroundStyle(Color.ink)
-        .navigationTitle(kind?.label ?? "全部")
+        .navigationTitle("首页")
         .ownerSubtitle(mine ? nil : "\(profile?.name ?? handle) · @\(handle)")
         .refreshable { await load() }
-        .task(id: "\(key)|\(model.marksVersion)") { await load() }
+        .task(id: "\(handle)|\(model.marksVersion)") { await load() }
     }
 
-    /// Done per kind; within one kind, its count per status.
-    private var tiles: [(count: Int, label: String)] {
-        let total = { (k: Kind?, s: Status?) in profile?.total(kind: k, status: s) ?? 0 }
-        if let kind { return Status.allCases.map { (total(kind, $0), $0.label(for: kind)) } }
-        return Kind.allCases.map { (total($0, .done), "\(Status.done.label(for: $0))的\($0.label)") }
-    }
-
-    private var stats: some View {
-        HStack(spacing: 8) {
-            ForEach(tiles, id: \.label) { tile in
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(profile == nil ? "–" : "\(tile.count)")
-                        .font(.system(size: 22, weight: .bold))
-                        .contentTransition(.numericText())
-                    Text(tile.label)
-                        .font(.caption2)
-                        .foregroundStyle(Color.muted)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 14).fill(Color.card))
-            }
-        }
-    }
-
-    private func title(_ status: Status) -> String {
-        // Like the web: 进行中 / 最近完成 / 计划中, or 在看 / 最近看过 / 想看 within one kind.
-        if status == .done { return "最近\(kind.map { status.label(for: $0) } ?? "完成")" }
-        return status.label(for: kind)
-    }
-
-    private func shelf(_ status: Status, _ items: [MarkedItem]) -> some View {
+    /// A titled row that scrolls sideways, with 查看全部 on the right.
+    private func row(_ title: String, count: Int? = nil, to route: Route, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            NavigationLink(value: Route.library(handle: handle, kind: kind, status: status)) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(title(status)).font(.title2.bold())
-                    Text("\(profile?.total(kind: kind, status: status) ?? items.count)")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.muted)
-                    Image(systemName: "chevron.right")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.muted)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.title2.bold())
+                if let count {
+                    Text("\(count)").font(.subheadline.weight(.medium)).foregroundStyle(Color.muted)
                 }
-                .contentShape(Rectangle())
+                Spacer()
+                NavigationLink("查看全部", value: route)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.accent)
             }
-            .buttonStyle(.plain)
             .padding(.horizontal, 16)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 12) {
-                    ForEach(items) { item in
-                        NavigationLink(value: Route.item(handle: handle, id: item.id)) {
-                            card(item)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .scrollTargetLayout()
+                LazyHStack(alignment: .top, spacing: 12) { content() }
+                    .scrollTargetLayout()
             }
             .contentMargins(.horizontal, 16, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             // Covers cast shadows past the row.
             .scrollClipDisabled()
         }
-        .padding(.top, 28)
+        .padding(.top, 26)
     }
 
-    private func card(_ item: MarkedItem) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CoverImage(path: item.cover, title: item.title)
-            Text(item.title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .padding(.top, 8)
-            Text("\(item.status?.label(for: item.kind) ?? "") · \(monthDay(item.markedOn))")
-                .font(.caption2)
-                .foregroundStyle(Color.muted)
-                .lineLimit(1)
-                .padding(.top, 2)
+    private static let tileColours: [Kind?: [Color]] = [
+        nil: [Color(red: 0.56, green: 0.56, blue: 0.58), Color(red: 0.28, green: 0.28, blue: 0.29)],
+        .screen: [Color(red: 0.04, green: 0.52, blue: 1), Color(red: 0.37, green: 0.36, blue: 0.9)],
+        .book: [Color(red: 1, green: 0.62, blue: 0.04), Color(red: 1, green: 0.42, blue: 0)],
+        .comic: [Color(red: 1, green: 0.22, blue: 0.37), Color(red: 0.75, green: 0.35, blue: 0.95)],
+        .game: [Color(red: 0.19, green: 0.82, blue: 0.35), Color(red: 0, green: 0.65, blue: 0.72)],
+    ]
+
+    private static let tileSymbols: [Kind?: String] = [
+        nil: "square.grid.2x2", .screen: "tv", .book: "book", .comic: "book.pages", .game: "gamecontroller",
+    ]
+
+    /// Bright tiles into the library by kind, like Infuse's Favorites.
+    @ViewBuilder private var kindTiles: some View {
+        ForEach([Kind?.none] + Kind.allCases.map { Optional($0) }, id: \.self) { kind in
+            NavigationLink(value: Route.library(handle: handle, kind: kind, status: nil)) {
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(LinearGradient(colors: Self.tileColours[kind]!, startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 112, height: 68)
+                        .overlay { Image(systemName: Self.tileSymbols[kind]!).font(.system(size: 28, weight: .medium)) }
+                        .overlay(alignment: .topTrailing) {
+                            Text("\(profile?.total(kind: kind) ?? 0)")
+                                .font(.caption.weight(.bold))
+                                .padding(.top, 6)
+                                .padding(.trailing, 9)
+                        }
+                        .foregroundStyle(.white)
+                    Text(kind?.label ?? "全部").font(.footnote.weight(.medium))
+                }
+            }
+            .buttonStyle(.plain)
         }
-        .frame(width: 104)
-        .contentShape(Rectangle())
+    }
+
+    private func posterCard(_ item: MarkedItem, status: Status) -> some View {
+        NavigationLink(value: Route.item(handle: handle, id: item.id)) {
+            VStack(alignment: .leading, spacing: 0) {
+                CoverImage(path: item.cover, title: item.title)
+                Text(item.title)
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .padding(.top, 7)
+                Text("\(status == .done ? item.status?.label(for: item.kind) ?? "" : item.kind.label) · \(monthDay(item.markedOn))")
+                    .font(.caption)
+                    .foregroundStyle(Color.muted)
+                    .lineLimit(1)
+            }
+            .frame(width: 104)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var empty: some View {
         VStack(spacing: 12) {
             Text("这里还空着。").font(.title3).foregroundStyle(Color.muted)
-            if mine && kind == nil {
+            if mine {
                 Button("记下第一部作品") { model.tab = .add }
             }
         }
@@ -150,18 +151,11 @@ struct HomeView: View {
         .padding(.vertical, 60)
     }
 
-    private var shelvesPath: String {
-        kind.map { "users/\(handle)/shelves?kind=\($0.rawValue)" } ?? "users/\(handle)/shelves"
-    }
-
     private func load() async {
         error = nil
         // Show what this screen had last time straight away; the network takes about a second.
-        if shownKey != key {
-            if profile == nil { profile = model.api.cached("users/\(handle)") }
-            shelves = model.api.cached(shelvesPath)
-            shownKey = key
-        }
+        if profile == nil { profile = model.api.cached("users/\(handle)") }
+        if shelves == nil { shelves = model.api.cached(shelvesPath) }
         do {
             async let fetchedProfile: Profile = model.api.api("GET", "users/\(handle)")
             let fetched: Shelves = try await model.api.api("GET", shelvesPath)
@@ -174,6 +168,80 @@ struct HomeView: View {
         } catch is CancellationError {
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// A 16:9 card for something in progress: landscape artwork when there is some, otherwise
+/// the cover on the left over a wash of its own colours, with the title beside it.
+struct WideCard: View {
+    @Environment(AppModel.self) private var model
+    let item: MarkedItem
+
+    @State private var art: UIImage?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.card
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .overlay {
+                    if item.backdrop != nil {
+                        if let art { Image(uiImage: art).resizable().scaledToFill() }
+                    } else {
+                        fallback
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if let status = item.status {
+                        Text(status.label(for: item.kind))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .glassEffect(.regular.tint(.black.opacity(0.25)), in: .capsule)
+                            .padding(10)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
+            Text(item.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .padding(.top, 8)
+            Text("\(item.kind.label) · \(monthDay(item.markedOn)) 起")
+                .font(.footnote)
+                .foregroundStyle(Color.muted)
+                .lineLimit(1)
+        }
+        .contentShape(Rectangle())
+        .task(id: item.backdrop) {
+            if let backdrop = item.backdrop { art = await CoverImage.image(for: backdrop, api: model.api, maxPixels: 1000) }
+        }
+    }
+
+    private var fallback: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                CoverBackdrop(path: item.cover, fade: false)
+                    .brightness(-0.12)
+                LinearGradient(colors: [.black.opacity(0.05), .black.opacity(0.35)], startPoint: .leading, endPoint: .trailing)
+                HStack(alignment: .top, spacing: 14) {
+                    CoverImage(path: item.cover, title: item.title)
+                        .frame(height: geo.size.height * 0.84)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(item.title)
+                            .font(.headline.weight(.bold))
+                            .lineLimit(3)
+                        Text([item.originalTitle, item.kind.label, item.year.map(String.init)].compactMap { $0 }.joined(separator: " · "))
+                            .font(.caption)
+                            .opacity(0.7)
+                            .lineLimit(2)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.top, 4)
+                }
+                .padding(geo.size.height * 0.08)
+            }
         }
     }
 }

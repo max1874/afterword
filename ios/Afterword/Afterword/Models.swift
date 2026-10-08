@@ -91,6 +91,8 @@ nonisolated struct MarkedItem: Decodable, Identifiable, Hashable {
     let source: String
     let sourceUrl: String?
     let cover: String?
+    /// Landscape artwork (TMDB backdrop, Steam hero) when the server found some.
+    let backdrop: String?
     let status: Status?
     let rating: Int?
     let comment: String?

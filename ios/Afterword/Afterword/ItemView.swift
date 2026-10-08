@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// One work as someone marked it, over a blur of its cover; on your own page, also the way to mark it.
+/// One work as someone marked it, under its landscape artwork or over a blur of its cover;
+/// on your own page, also the way to mark it.
 struct ItemView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -21,9 +22,16 @@ struct ItemView: View {
             if let item {
                 content(item)
                     .background(alignment: .top) {
-                        CoverBackdrop(path: item.cover)
-                            .frame(height: 560)
-                            .padding(.top, -200)
+                        if item.backdrop != nil {
+                            // About 16:10 across the phone, so the artwork is not cropped to a sliver.
+                            ArtworkBackdrop(path: item.backdrop)
+                                .frame(height: 400)
+                                .padding(.top, -150)
+                        } else {
+                            CoverBackdrop(path: item.cover)
+                                .frame(height: 560)
+                                .padding(.top, -200)
+                        }
                     }
             } else if let error {
                 ContentUnavailableView("没有这条标记", systemImage: "questionmark.square.dashed", description: Text(error))
@@ -65,10 +73,15 @@ struct ItemView: View {
 
     private func content(_ item: MarkedItem) -> some View {
         VStack(spacing: 0) {
-            CoverImage(path: item.cover, title: item.title)
-                .frame(width: 186)
-                .shadow(color: .black.opacity(0.25), radius: 18, y: 12)
-                .padding(.top, 12)
+            if item.backdrop != nil {
+                // The artwork above shows through here.
+                Color.clear.frame(height: 200)
+            } else {
+                CoverImage(path: item.cover, title: item.title)
+                    .frame(width: 186)
+                    .shadow(color: .black.opacity(0.25), radius: 18, y: 12)
+                    .padding(.top, 12)
+            }
             Text(item.title)
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)
@@ -89,6 +102,7 @@ struct ItemView: View {
             }
 
             markRow(item).padding(.top, 20)
+            if mine { quickStatus(item).padding(.top, 10) }
 
             if mine, item.status != nil, item.status != .wish {
                 StarInput(rating: Binding(get: { item.rating }, set: { rating in Task { await rate(item, rating) } }))
@@ -170,6 +184,29 @@ struct ItemView: View {
         }
     }
 
+    /// 看过 / 在看 / 想看 as round buttons, like Infuse's row under Resume: one tap changes the status.
+    private func quickStatus(_ item: MarkedItem) -> some View {
+        HStack(spacing: 8) {
+            ForEach(Status.allCases, id: \.self) { status in
+                let on = item.status == status
+                Button {
+                    Task { await save(item, status: status) }
+                } label: {
+                    Label(status.label(for: item.kind), systemImage: Self.statusSymbols[status]!)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .foregroundStyle(on ? Color.accent : Color.ink)
+                        .background(Capsule().fill(on ? Color.accent.opacity(0.18) : Color.card))
+                        .overlay(Capsule().stroke(on ? Color.accent : .clear, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private static let statusSymbols: [Status: String] = [.done: "checkmark", .doing: "play.fill", .wish: "bookmark"]
+
     private func moreMenu(_ item: MarkedItem) -> some View {
         Menu {
             if mine {
@@ -193,8 +230,18 @@ struct ItemView: View {
     /// Stars on your own page save straight away, keeping the rest of the mark.
     private func rate(_ item: MarkedItem, _ rating: Int?) async {
         guard let status = item.status else { return }
+        await save(item, status: status, rating: rating, markedOn: item.markedOn)
+    }
+
+    /// A new status from the round buttons starts today; the rating stays unless it is now 想看.
+    private func save(_ item: MarkedItem, status: Status) async {
+        let markedOn = item.status == status ? item.markedOn : model.me?.today
+        await save(item, status: status, rating: status == .wish ? nil : item.rating, markedOn: markedOn)
+    }
+
+    private func save(_ item: MarkedItem, status: Status, rating: Int?, markedOn: String?) async {
         rateError = nil
-        var body: [String: Any] = ["status": status.rawValue, "marked_on": item.markedOn ?? "", "comment": item.comment ?? ""]
+        var body: [String: Any] = ["status": status.rawValue, "marked_on": markedOn ?? "", "comment": item.comment ?? ""]
         if let rating { body["rating"] = rating }
         do {
             let saved: SavedItem = try await model.api.api("PUT", "marks/\(item.id)", body: body)
@@ -338,5 +385,28 @@ struct MarkEditor: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+/// Landscape artwork across the top of an item page, fading into it.
+struct ArtworkBackdrop: View {
+    @Environment(AppModel.self) private var model
+    let path: String?
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill().transition(.opacity)
+                }
+            }
+            .clipped()
+            .overlay(LinearGradient(colors: [.clear, Color.paper], startPoint: UnitPoint(x: 0.5, y: 0.5), endPoint: .bottom))
+            .task(id: path) {
+                let loaded = await CoverImage.image(for: path, api: model.api, maxPixels: 1400)
+                withAnimation(.easeOut(duration: 0.25)) { image = loaded }
+            }
     }
 }

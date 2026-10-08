@@ -8,6 +8,8 @@ struct LibraryView: View {
     @State private var profile: Profile?
     @State private var kind: Kind?
     @State private var status: Status?
+    /// Starts the list at the end of this year, from the index down the side.
+    @State private var until: Int?
     @State private var items: [MarkedItem] = []
     @State private var yearCounts: [String: Int] = [:]
     @State private var page = 0
@@ -24,9 +26,15 @@ struct LibraryView: View {
     private var mine: Bool { model.me?.handle == handle }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            list.onChange(of: until) { proxy.scrollTo("top", anchor: .top) }
+        }
+    }
+
+    private var list: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                filters
+                filters.id("top")
                 if let error, items.isEmpty {
                     ContentUnavailableView("没有加载出来", systemImage: "exclamationmark.triangle", description: Text(error))
                 } else if items.isEmpty && !hasMore {
@@ -37,14 +45,43 @@ struct LibraryView: View {
                 }
                 footer
             }
-            .padding(.horizontal, 16)
+            .padding(.leading, 16)
+            .padding(.trailing, yearIndex.count > 1 ? 30 : 16)
         }
+        .overlay(alignment: .trailing) { yearIndexView }
         .background(Color.paper)
         .foregroundStyle(Color.ink)
         .navigationTitle("资料库")
         .ownerSubtitle(mine ? nil : "\(profile?.name ?? handle) · @\(handle)")
         .refreshable { await reload() }
-        .task(id: "\(handle)|\(kind?.rawValue ?? "")|\(status?.rawValue ?? "")|\(model.marksVersion)") { await reload() }
+        .task(id: "\(filterKey)|\(model.marksVersion)") { await reload() }
+        .onChange(of: kind) { until = nil }
+        .onChange(of: status) { until = nil }
+    }
+
+    /// Every year with marks under the current filter, newest first.
+    private var yearIndex: [String] { yearCounts.keys.sorted(by: >) }
+
+    /// Jump to a year, like Infuse's letter index down the side.
+    @ViewBuilder private var yearIndexView: some View {
+        if yearIndex.count > 1 {
+            VStack(spacing: 2) {
+                ForEach(yearIndex, id: \.self) { year in
+                    let on = until == Int(year)
+                    Button {
+                        until = on ? nil : Int(year)
+                    } label: {
+                        Text(year.suffix(2))
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(on ? Color.accentInk : Color.accent)
+                            .frame(width: 22, height: 17)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(on ? Color.accent : .clear))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.trailing, 4)
+        }
     }
 
     private var filters: some View {
@@ -194,7 +231,7 @@ struct LibraryView: View {
 
     /// The filter the items on screen belong to; another one starts from its own cache.
     @State private var shownFilter = ""
-    private var filterKey: String { "\(handle)|\(kind?.rawValue ?? "")|\(status?.rawValue ?? "")" }
+    private var filterKey: String { "\(handle)|\(kind?.rawValue ?? "")|\(status?.rawValue ?? "")|\(until.map(String.init) ?? "")" }
 
     private func show(_ first: MarksPage) {
         items = first.items
@@ -234,6 +271,7 @@ struct LibraryView: View {
         var query = [URLQueryItem(name: "page", value: String(page))]
         if let kind { query.append(URLQueryItem(name: "kind", value: kind.rawValue)) }
         if let status { query.append(URLQueryItem(name: "status", value: status.rawValue)) }
+        if let until { query.append(URLQueryItem(name: "until", value: String(until))) }
         var components = URLComponents()
         components.queryItems = query
         return "users/\(handle)/marks?\(components.percentEncodedQuery ?? "")"

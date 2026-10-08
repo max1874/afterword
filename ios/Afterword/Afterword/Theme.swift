@@ -2,15 +2,15 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-/// iOS's own semantic colours, matching the web's Apple neutrals (`app/app.css`):
-/// the covers are the only colour, and everything follows light and dark mode.
+/// iOS's own semantic colours with one orange accent, matching the web (`app/app.css`);
+/// everything follows light and dark mode.
 extension Color {
     static let paper = Color(uiColor: .systemBackground)
     static let card = Color(uiColor: .secondarySystemBackground)
     static let ink = Color(uiColor: .label)
     static let muted = Color(uiColor: .secondaryLabel)
     static let line = Color(uiColor: .separator)
-    static let accent = Color(uiColor: .label)
+    static let accent = Color(uiColor: .systemOrange)
     static let accentInk = Color(uiColor: .systemBackground)
     static let danger = Color(uiColor: .systemRed)
 }
@@ -51,11 +51,11 @@ struct CoverImage: View {
             .task(id: path) { image = await Self.image(for: path, api: model.api) }
     }
 
-    /// The cover for a path, decoded once and kept in memory.
-    static func image(for path: String?, api: APIClient) async -> UIImage? {
+    /// The cover (or landscape artwork) for a path, decoded once and kept in memory.
+    static func image(for path: String?, api: APIClient, maxPixels: Int = 600) async -> UIImage? {
         guard let path, let url = api.url(for: path) else { return nil }
         if let cached = CoverCache.shared.object(forKey: path as NSString) { return cached }
-        guard let data = try? await api.data(from: url), let loaded = await thumbnail(data) else { return nil }
+        guard let data = try? await api.data(from: url), let loaded = await thumbnail(data, maxPixels: maxPixels) else { return nil }
         CoverCache.shared.setObject(loaded, forKey: path as NSString)
         return loaded
     }
@@ -63,28 +63,31 @@ struct CoverImage: View {
     /// Decoded and scaled down off the main thread; covers are up to 1024px tall and
     /// decoding them while scrolling drops frames.
     @concurrent
-    private static func thumbnail(_ data: Data) async -> UIImage? {
+    private static func thumbnail(_ data: Data, maxPixels: Int) async -> UIImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: 600,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixels,
         ]
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
         return UIImage(cgImage: image)
     }
 }
 
-/// A cover blurred into a wash of its colours, fading into the page; behind the top of item pages.
+/// A cover blurred into a wash of its colours: fading into the page behind the top of item
+/// pages, or filling a wide card without a fade.
 struct CoverBackdrop: View {
     @Environment(AppModel.self) private var model
     let path: String?
+    let fade: Bool
 
     @State private var image: UIImage?
 
-    init(path: String?) {
+    init(path: String?, fade: Bool = true) {
         self.path = path
+        self.fade = fade
         _image = State(initialValue: path.flatMap { CoverCache.shared.object(forKey: $0 as NSString) })
     }
 
@@ -97,12 +100,14 @@ struct CoverBackdrop: View {
                         .scaledToFill()
                         .blur(radius: 50)
                         .saturation(1.4)
-                        .opacity(0.55)
+                        .opacity(fade ? 0.55 : 1)
                         .transition(.opacity)
                 }
             }
             .clipped()
-            .overlay(LinearGradient(colors: [.clear, Color.paper], startPoint: UnitPoint(x: 0.5, y: 0.35), endPoint: .bottom))
+            .overlay {
+                if fade { LinearGradient(colors: [.clear, Color.paper], startPoint: UnitPoint(x: 0.5, y: 0.35), endPoint: .bottom) }
+            }
             .task(id: path) {
                 let loaded = await CoverImage.image(for: path, api: model.api)
                 withAnimation(.easeOut(duration: 0.25)) { image = loaded }
