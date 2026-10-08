@@ -84,7 +84,7 @@ export default function Import() {
         onChange={(event) => readFile(event.target.files?.[0])}
         className="w-full max-w-md"
       />
-      {fileError ? <p className="mt-3 text-sm text-seal">无法读取：{fileError}</p> : null}
+      {fileError ? <p className="mt-3 text-sm text-danger">无法读取：{fileError}</p> : null}
 
       {rows ? (
         <section className="mt-8 rounded-lg border border-line bg-card p-5 sm:p-6">
@@ -99,7 +99,7 @@ export default function Import() {
           <button
             onClick={run}
             disabled={running || (progress?.done ?? 0) === rows.length}
-            className="mt-5 rounded-full bg-seal px-6 py-2 text-seal-ink transition hover:opacity-90 disabled:opacity-60"
+            className="mt-5 rounded-full bg-accent px-6 py-2 text-accent-ink transition hover:opacity-90 disabled:opacity-60"
           >
             {running ? "导入中…" : progress ? "已导入" : "开始导入"}
           </button>
@@ -109,21 +109,21 @@ export default function Import() {
       {progress && rows ? (
         <section className="mt-6 text-sm">
           <div className="h-1.5 overflow-hidden rounded-full bg-line">
-            <div className="h-full bg-seal transition-all" style={{ width: `${(progress.done / rows.length) * 100}%` }} />
+            <div className="h-full bg-accent transition-all" style={{ width: `${(progress.done / rows.length) * 100}%` }} />
           </div>
           <p className="mt-3">
             {progress.done} / {rows.length} · 新增 {progress.added} · 更新 {progress.updated}
             {progress.errors.length ? ` · 失败 ${progress.errors.length}` : ""}
           </p>
           {progress.errors.length ? (
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-seal">
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-danger">
               {progress.errors.map((error, i) => (
                 <li key={i}>{error}</li>
               ))}
             </ul>
           ) : null}
           {!running && progress.done === rows.length ? (
-            <Link to="/" className="mt-4 inline-block text-seal underline underline-offset-4">
+            <Link to="/" className="mt-4 inline-block text-accent underline underline-offset-4">
               去首页看看
             </Link>
           ) : null}

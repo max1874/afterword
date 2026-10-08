@@ -61,7 +61,7 @@ export function MarkForm({
 
       <button
         disabled={saving}
-        className="rounded-full bg-seal px-6 py-2 text-seal-ink transition hover:opacity-90 disabled:opacity-60"
+        className="rounded-full bg-accent px-6 py-2 text-accent-ink transition hover:opacity-90 disabled:opacity-60"
       >
         {saving ? "保存中…" : "保存"}
       </button>

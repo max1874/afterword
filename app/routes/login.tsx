@@ -77,7 +77,7 @@ export default function Login() {
       >
         {busy ? "等待通行密钥…" : "用通行密钥登录"}
       </button>
-      {error ? <p className="mt-3 text-sm text-seal">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
       <p className="mt-8 text-sm text-muted">
         设备丢了？
         <Link to={`/login/recovery?next=${encodeURIComponent(next)}`} className="ml-1 underline underline-offset-4 hover:text-ink">

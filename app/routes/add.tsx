@@ -90,7 +90,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
       </Form>
 
       {actionData && "error" in actionData ? (
-        <p className="mb-6 text-sm text-seal">{actionData.error}</p>
+        <p className="mb-6 text-sm text-danger">{actionData.error}</p>
       ) : null}
 
       {query ? (
@@ -99,7 +99,7 @@ export default function Add({ loaderData, actionData }: Route.ComponentProps) {
             <div key={group.source}>
               <h2 className="mb-3 flex items-baseline gap-2 text-sm text-muted">
                 <span className="font-semibold text-ink">{group.label}</span>
-                {group.error ? <span className="text-seal">搜索失败（{group.error}）</span> : <span>{group.items.length} 条</span>}
+                {group.error ? <span className="text-danger">搜索失败（{group.error}）</span> : <span>{group.items.length} 条</span>}
               </h2>
               <ul className="divide-y divide-line border-y border-line">
                 {group.items.map((item) => (
@@ -159,7 +159,7 @@ function Candidate({ item, handle, query }: { item: CandidateItem; handle: strin
             <input type="hidden" name="q" value={query} />
             <button
               disabled={adding}
-              className="rounded-full border border-seal px-4 py-1.5 text-sm text-seal transition hover:bg-seal hover:text-seal-ink disabled:opacity-60"
+              className="rounded-full border border-accent px-4 py-1.5 text-sm text-accent transition hover:bg-accent hover:text-accent-ink disabled:opacity-60"
             >
               {adding ? "标记中…" : "标记"}
             </button>
@@ -194,7 +194,7 @@ function ManualForm({ kind }: { kind: Kind }) {
         <textarea name="summary" rows={3} className="w-full" />
       </label>
       <div className="sm:col-span-2">
-        <button className="rounded-full bg-seal px-6 py-2 text-seal-ink transition hover:opacity-90">添加并标记</button>
+        <button className="rounded-full bg-accent px-6 py-2 text-accent-ink transition hover:opacity-90">添加并标记</button>
       </div>
     </Form>
   );

@@ -2,27 +2,17 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-/// The web's palette (`app/app.css`), light and dark.
+/// iOS's own semantic colours, matching the web's Apple neutrals (`app/app.css`):
+/// the covers are the only colour, and everything follows light and dark mode.
 extension Color {
-    static let paper = Color(light: 0xF5F0E6, dark: 0x191714)
-    static let card = Color(light: 0xFBF8F2, dark: 0x221F1B)
-    static let ink = Color(light: 0x2A2521, dark: 0xE9E2D6)
-    static let muted = Color(light: 0x857A6E, dark: 0x9A8F82)
-    static let line = Color(light: 0xE2D9CA, dark: 0x36312B)
-    static let seal = Color(light: 0xB5402C, dark: 0xD0624B)
-    static let sealInk = Color(light: 0xFBF8F2, dark: 0x191714)
-
-    init(light: UInt32, dark: UInt32) {
-        func color(_ hex: UInt32) -> UIColor {
-            UIColor(
-                red: CGFloat((hex >> 16) & 0xFF) / 255,
-                green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255,
-                alpha: 1
-            )
-        }
-        self.init(uiColor: UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
-    }
+    static let paper = Color(uiColor: .systemBackground)
+    static let card = Color(uiColor: .secondarySystemBackground)
+    static let ink = Color(uiColor: .label)
+    static let muted = Color(uiColor: .secondaryLabel)
+    static let line = Color(uiColor: .separator)
+    static let accent = Color(uiColor: .label)
+    static let accentInk = Color(uiColor: .systemBackground)
+    static let danger = Color(uiColor: .systemRed)
 }
 
 /// A cover at the web's 2:3 ratio, loaded with the session so proxied search previews work.
@@ -101,7 +91,7 @@ struct Stars: View {
                 ForEach(1...5, id: \.self) { i in
                     Image(systemName: i <= rating ? "star.fill" : "star")
                         .font(.system(size: 10))
-                        .foregroundStyle(i <= rating ? Color.seal : Color.line)
+                        .foregroundStyle(i <= rating ? Color.accent : Color.line)
                 }
             }
             .accessibilityLabel("\(rating) 星")
@@ -120,7 +110,7 @@ struct StarInput: View {
                 } label: {
                     Image(systemName: i <= (rating ?? 0) ? "star.fill" : "star")
                         .font(.title2)
-                        .foregroundStyle(i <= (rating ?? 0) ? Color.seal : Color.muted)
+                        .foregroundStyle(i <= (rating ?? 0) ? Color.accent : Color.muted)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(i) 星")

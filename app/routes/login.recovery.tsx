@@ -34,7 +34,7 @@ export default function RecoveryLogin({ actionData }: Route.ComponentProps) {
         required
         className="w-full font-mono"
       />
-      {actionData?.error ? <p className="text-sm text-seal">{actionData.error}</p> : null}
+      {actionData?.error ? <p className="text-sm text-danger">{actionData.error}</p> : null}
       <button className="w-full rounded-md bg-ink py-2 text-paper transition hover:opacity-85">登录</button>
       <p className="text-sm">
         <Link to="/login" className="text-muted hover:text-ink">

@@ -90,7 +90,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
     <div className="mx-auto max-w-2xl space-y-12">
       <h1 className="text-3xl font-semibold">设置</h1>
       {params.get("recovered") ? (
-        <p className="rounded-lg border border-seal px-4 py-3 text-sm">
+        <p className="rounded-lg border border-accent px-4 py-3 text-sm">
           你用恢复码登录了。给这台设备添加一个通行密钥，下次就不用恢复码了；也可以重新生成一组恢复码。
         </p>
       ) : null}
@@ -100,7 +100,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
       <Recovery left={loaderData.recoveryLeft} handle={loaderData.me.handle} />
       {loaderData.invites ? <Invites invites={loaderData.invites} origin={loaderData.origin} /> : null}
       <Form method="post" action="/logout" className="border-t border-line pt-6">
-        <button className="text-sm text-muted hover:text-seal">退出登录</button>
+        <button className="text-sm text-muted hover:text-accent">退出登录</button>
       </Form>
     </div>
   );
@@ -152,7 +152,7 @@ function Profile({ me }: { me: Data["me"] }) {
         </label>
         <div className="flex items-center gap-3 sm:col-span-2">
           <button className="rounded-full bg-ink px-5 py-1.5 text-sm text-paper transition hover:opacity-85">保存</button>
-          {result && "error" in result ? <span className="text-sm text-seal">{result.error}</span> : null}
+          {result && "error" in result ? <span className="text-sm text-danger">{result.error}</span> : null}
           {result && "saved" in result ? <span className="text-sm text-muted">已保存</span> : null}
         </div>
       </fetcher.Form>
@@ -211,7 +211,7 @@ function Passkeys({ data: loaderData }: { data: Data }) {
             >
               <input type="hidden" name="intent" value="delete-passkey" />
               <input type="hidden" name="id" value={p.id} />
-              <button disabled={passkeys.length <= 1} className="text-sm text-muted hover:text-seal disabled:opacity-40">
+              <button disabled={passkeys.length <= 1} className="text-sm text-muted hover:text-accent disabled:opacity-40">
                 删除
               </button>
             </fetcher.Form>
@@ -227,8 +227,8 @@ function Passkeys({ data: loaderData }: { data: Data }) {
         >
           {adding ? "等待通行密钥…" : "＋ 添加通行密钥"}
         </button>
-        {error ? <span className="text-sm text-seal">{error}</span> : null}
-        {result && "error" in result ? <span className="text-sm text-seal">{result.error}</span> : null}
+        {error ? <span className="text-sm text-danger">{error}</span> : null}
+        {result && "error" in result ? <span className="text-sm text-danger">{result.error}</span> : null}
       </div>
     </Section>
   );
@@ -254,7 +254,7 @@ function Sessions({ sessions }: { sessions: Data["sessions"] }) {
             <div>
               <p>
                 {describeAgent(s.user_agent)}
-                {s.current ? <span className="ml-2 text-sm text-seal">这台设备</span> : null}
+                {s.current ? <span className="ml-2 text-sm text-accent">这台设备</span> : null}
               </p>
               <p className="text-sm text-muted">
                 登录于 {formatTime(s.created_at)} · 最近活动 {formatTime(s.last_seen_at)}
@@ -264,7 +264,7 @@ function Sessions({ sessions }: { sessions: Data["sessions"] }) {
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="delete-session" />
                 <input type="hidden" name="id" value={s.id} />
-                <button className="text-sm text-muted hover:text-seal">退出</button>
+                <button className="text-sm text-muted hover:text-accent">退出</button>
               </fetcher.Form>
             )}
           </li>
@@ -273,7 +273,7 @@ function Sessions({ sessions }: { sessions: Data["sessions"] }) {
       {sessions.length > 1 ? (
         <fetcher.Form method="post" className="mt-4">
           <input type="hidden" name="intent" value="delete-other-sessions" />
-          <button className="text-sm text-muted underline underline-offset-4 hover:text-seal">退出其他所有设备</button>
+          <button className="text-sm text-muted underline underline-offset-4 hover:text-accent">退出其他所有设备</button>
         </fetcher.Form>
       ) : null}
     </Section>
@@ -347,7 +347,7 @@ function Invites({ invites, origin }: { invites: NonNullable<Data["invites"]>; o
                     <fetcher.Form method="post">
                       <input type="hidden" name="intent" value="revoke-invite" />
                       <input type="hidden" name="code" value={invite.code} />
-                      <button className="text-muted hover:text-seal">作废</button>
+                      <button className="text-muted hover:text-accent">作废</button>
                     </fetcher.Form>
                   </div>
                 )}

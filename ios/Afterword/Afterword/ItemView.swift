@@ -56,7 +56,7 @@ struct ItemView: View {
                     }
                 }
                 .padding(.leading, 16)
-                .overlay(alignment: .leading) { Rectangle().fill(Color.seal).frame(width: 2) }
+                .overlay(alignment: .leading) { Rectangle().fill(Color.accent).frame(width: 2) }
                 .padding(.top, 28)
             }
 
@@ -171,12 +171,12 @@ struct MarkEditor: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.paper))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.line))
             if let error {
-                Text(error).font(.subheadline).foregroundStyle(Color.seal)
+                Text(error).font(.subheadline).foregroundStyle(Color.danger)
             }
             Button {
                 Task { await save() }
             } label: {
-                Text(saving ? "保存中…" : "保存").foregroundStyle(Color.sealInk).padding(.horizontal, 12).padding(.vertical, 4)
+                Text(saving ? "保存中…" : "保存").foregroundStyle(Color.accentInk).padding(.horizontal, 12).padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
             .disabled(saving)

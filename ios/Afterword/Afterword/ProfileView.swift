@@ -92,7 +92,7 @@ struct ProfileView: View {
             .foregroundStyle(kind == value ? Color.ink : Color.muted)
             .padding(.bottom, 4)
             .overlay(alignment: .bottom) {
-                if kind == value { Rectangle().fill(Color.seal).frame(height: 2) }
+                if kind == value { Rectangle().fill(Color.accent).frame(height: 2) }
             }
         }
         .buttonStyle(.plain)

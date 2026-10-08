@@ -26,14 +26,12 @@ struct SettingsView: View {
                 if let invites = settings.invites { inviteSection(invites) }
             }
             if let error {
-                Text(error).foregroundStyle(Color.seal)
+                Text(error).foregroundStyle(Color.danger)
             }
             Section {
                 Button("退出登录", role: .destructive) { confirm = .signOut }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.paper)
         .navigationTitle("设置")
         .refreshable { await load() }
         .task { await load() }

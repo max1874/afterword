@@ -66,10 +66,10 @@ export function AccountForm({
         <span className="mb-1.5 block text-sm text-muted">名字，显示在主页上</span>
         <input name="name" defaultValue={initial?.name} maxLength={40} required className="w-full" />
       </label>
-      {error ? <p className="text-sm text-seal">{error}</p> : null}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
       <button
         disabled={busy}
-        className="w-full rounded-md bg-seal py-2 text-seal-ink transition hover:opacity-90 disabled:opacity-60"
+        className="w-full rounded-md bg-accent py-2 text-accent-ink transition hover:opacity-90 disabled:opacity-60"
       >
         {busy ? "等待通行密钥…" : submitLabel}
       </button>

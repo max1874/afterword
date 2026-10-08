@@ -1,7 +1,7 @@
 export function Stars({ rating, className = "" }: { rating: number | null; className?: string }) {
   if (!rating) return null;
   return (
-    <span className={`tracking-[0.1em] text-seal ${className}`} aria-label={`${rating} 星`}>
+    <span className={`tracking-[0.1em] text-accent ${className}`} aria-label={`${rating} 星`}>
       {"★".repeat(rating)}
       <span className="text-line">{"★".repeat(5 - rating)}</span>
     </span>
@@ -26,7 +26,7 @@ export function StarInput({
           aria-checked={value === n}
           aria-label={`${n} 星`}
           onClick={() => onChange(value === n ? null : n)}
-          className={`leading-none transition ${value && n <= value ? "text-seal" : "text-line hover:text-muted"}`}
+          className={`leading-none transition ${value && n <= value ? "text-accent" : "text-line hover:text-muted"}`}
         >
           ★
         </button>

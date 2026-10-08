@@ -83,7 +83,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
         </p>
 
         {item.status ? (
-          <section className="mt-8 border-l-2 border-seal pl-5">
+          <section className="mt-8 border-l-2 border-accent pl-5">
             {mine ? null : <p className="mb-2 text-sm font-semibold">{profile.name}</p>}
             <p className="flex flex-wrap items-center gap-3 text-sm text-muted">
               <span>{item.marked_on}</span>
@@ -107,7 +107,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
           <section className="mt-10 rounded-lg border border-line bg-card p-5 sm:p-6">
             <h2 className="mb-5 text-xl font-semibold">{item.status ? "修改标记" : "标记这部作品"}</h2>
             {actionData && "error" in actionData ? (
-              <p className="mb-4 text-sm text-seal">{actionData.error}</p>
+              <p className="mb-4 text-sm text-danger">{actionData.error}</p>
             ) : null}
             <MarkForm key={item.marked_on ?? "new"} kind={item.kind} initial={item} today={today} />
             <Form
@@ -118,7 +118,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
               }}
             >
               <input type="hidden" name="intent" value="delete" />
-              <button className="text-sm text-muted hover:text-seal">删除这条标记</button>
+              <button className="text-sm text-muted hover:text-accent">删除这条标记</button>
             </Form>
           </section>
         ) : null}
@@ -127,7 +127,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
           <p className="mt-8 text-sm">
             <Link
               to={`/@${viewerHandle}/items/${item.id}`}
-              className="text-seal underline underline-offset-4"
+              className="text-accent underline underline-offset-4"
             >
               我的标记
             </Link>

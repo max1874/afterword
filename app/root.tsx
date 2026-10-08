@@ -29,6 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <Meta />
         <Links />
       </head>
@@ -46,9 +47,8 @@ function Header() {
   return (
     <header className="mx-auto flex max-w-5xl items-center justify-between px-4 pt-8 pb-6 sm:px-6">
       <Link to="/" className="flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-[3px] bg-seal text-lg font-semibold text-seal-ink">
-          记
-        </span>
+        {/* The app icon, same as the favicon. */}
+        <img src="/favicon.svg" alt="" className="size-9" />
         <span className="text-2xl font-semibold">后记</span>
       </Link>
       {root?.viewer ? (
@@ -117,7 +117,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       <h1 className="text-3xl font-semibold">{message}</h1>
       <p className="mt-3 text-muted">{details}</p>
       <p className="mt-6">
-        <Link to="/" className="text-seal underline underline-offset-4">
+        <Link to="/" className="text-accent underline underline-offset-4">
           回到首页
         </Link>
       </p>

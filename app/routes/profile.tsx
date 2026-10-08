@@ -109,7 +109,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <div className="py-20 text-center text-muted">
           <p className="text-xl">这里还空着。</p>
           {mine ? (
-            <Link to="/add" className="mt-4 inline-block text-seal underline underline-offset-4">
+            <Link to="/add" className="mt-4 inline-block text-accent underline underline-offset-4">
               记下第一部作品
             </Link>
           ) : null}
@@ -211,7 +211,7 @@ function FilterLink({ to, active, children }: { to: string; active: boolean; chi
   return (
     <Link
       to={to}
-      className={`border-b-2 pb-1 transition ${active ? "border-seal text-ink" : "border-transparent text-muted hover:text-ink"}`}
+      className={`border-b-2 pb-1 transition ${active ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"}`}
     >
       {children}
     </Link>

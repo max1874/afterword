@@ -26,7 +26,7 @@ struct AddView: View {
                 .listRowInsets(EdgeInsets())
             }
             if let error {
-                Text(error).foregroundStyle(Color.seal).listRowBackground(Color.clear)
+                Text(error).foregroundStyle(Color.danger).listRowBackground(Color.clear)
             }
             if searching {
                 HStack { Spacer(); ProgressView("搜索中…"); Spacer() }.listRowBackground(Color.clear)
@@ -38,7 +38,7 @@ struct AddView: View {
                         HStack {
                             Text(group.label).foregroundStyle(Color.ink)
                             if let failure = group.error {
-                                Text("搜索失败（\(failure)）").foregroundStyle(Color.seal)
+                                Text("搜索失败（\(failure)）").foregroundStyle(Color.danger)
                             } else {
                                 Text("\(group.items.count) 条")
                             }
@@ -56,8 +56,6 @@ struct AddView: View {
                 Button("有一批旧标记？从文件导入") { showImport = true }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.paper)
         .navigationTitle("记一笔")
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品名，中文、原名都可以")
         .onSubmit(of: .search) { Task { await search() } }
@@ -115,7 +113,6 @@ struct AddView: View {
                     .frame(maxHeight: .infinity)
             }
         }
-        .listRowBackground(Color.card)
     }
 
     private func open(_ id: String) {
@@ -192,7 +189,7 @@ struct ManualAddView: View {
                 TextEditor(text: $summary).frame(minHeight: 90)
             }
             if let error {
-                Text(error).foregroundStyle(Color.seal)
+                Text(error).foregroundStyle(Color.danger)
             }
         }
         .navigationTitle("手动添加")
@@ -246,7 +243,7 @@ struct ImportView: View {
         Form {
             Section {
                 Button(fileName ?? "选择 JSON 文件") { choosing = true }.disabled(running)
-                if let fileError { Text(fileError).foregroundStyle(Color.seal) }
+                if let fileError { Text(fileError).foregroundStyle(Color.danger) }
             } footer: {
                 Text("内容是标记的数组，每条包含 kind、status、title、marked_on，以及可选的 original_title、year、creators、cover_url、rating、comment、source、source_id、source_url。同一来源的条目按 source_id 匹配，重复导入只会更新标记。")
             }

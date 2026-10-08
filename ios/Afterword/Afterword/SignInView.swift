@@ -25,13 +25,13 @@ struct SignInView: View {
                 .foregroundStyle(Color.muted)
                 .padding(.bottom, 16)
             if let error {
-                Text(error).font(.subheadline).foregroundStyle(Color.seal).padding(.bottom, 12)
+                Text(error).font(.subheadline).foregroundStyle(Color.danger).padding(.bottom, 12)
             }
             Button {
                 Task { await signIn() }
             } label: {
                 Text(busy ? "等待通行密钥…" : "用通行密钥登录")
-                    .foregroundStyle(Color.sealInk)
+                    .foregroundStyle(Color.accentInk)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
@@ -95,7 +95,7 @@ struct RecoverySignInView: View {
                 Text("每个恢复码只能用一次。登录后记得给这台设备添加通行密钥。")
             }
             if let error {
-                Text(error).foregroundStyle(Color.seal)
+                Text(error).foregroundStyle(Color.danger)
             }
         }
         .navigationTitle("用恢复码登录")
@@ -150,7 +150,7 @@ struct JoinView: View {
                 Text("会用这台设备的 Face ID 或 Touch ID 创建通行密钥，不需要密码。")
             }
             if let error {
-                Text(error).foregroundStyle(Color.seal)
+                Text(error).foregroundStyle(Color.danger)
             }
         }
         .navigationTitle("加入后记")
@@ -209,7 +209,7 @@ struct RecoveryCodesView: View {
             }
             Spacer()
             Button(action: onDone) {
-                Text("我已经保存好了").foregroundStyle(Color.sealInk).frame(maxWidth: .infinity).padding(.vertical, 6)
+                Text("我已经保存好了").foregroundStyle(Color.accentInk).frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
