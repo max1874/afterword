@@ -21,4 +21,5 @@ export default [
   route(":profile", "routes/profile.tsx"),
   route(":profile/library", "routes/library.tsx"),
   route(":profile/items/:id", "routes/item.tsx"),
+  route(":profile/items/:id/artwork", "routes/item-artwork.tsx"),
 ] satisfies RouteConfig;

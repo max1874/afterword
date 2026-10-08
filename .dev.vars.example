@@ -11,3 +11,7 @@ GOOGLE_BOOKS_API_KEY=
 # Optional. Wide artwork for games not on Steam, such as Nintendo and PlayStation
 # games (https://www.steamgriddb.com/profile/preferences/api).
 STEAMGRIDDB_API_KEY=
+# Optional. Official key art for games from IGDB, through a Twitch app's client
+# credentials (https://dev.twitch.tv/console/apps).
+TWITCH_CLIENT_ID=
+TWITCH_CLIENT_SECRET=

@@ -6,7 +6,7 @@ import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
 import { profileFromParam, usesRatings } from "~/lib/accounts.server";
-import { fillDetailsNow } from "~/lib/details.server";
+import { fillDetailsNow, hasArtwork } from "~/lib/details.server";
 import { parseMark } from "~/lib/catalog.server";
 import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
 import { backdropSrc, coverSrc, factsOf, joinText, monthDay } from "~/lib/format";
@@ -38,6 +38,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     profile: { handle: user.handle, name: user.name },
     mine,
     ratings: usesRatings(user),
+    // Items are shared, so only an admin replaces their artwork.
+    canChooseArtwork: Boolean(viewer?.is_admin) && hasArtwork(item),
     viewerHandle: viewer?.handle ?? null,
     today: today(),
   };
@@ -76,7 +78,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function ItemPage({ loaderData, actionData }: Route.ComponentProps) {
-  const { item, profile, mine, ratings, viewerHandle, today } = loaderData;
+  const { item, profile, mine, ratings, canChooseArtwork, viewerHandle, today } = loaderData;
   const meta = [item.original_title, kindLabel(item.kind), item.year].filter(Boolean).join(" · ");
   const statusText = item.status ? `${statusLabel(item.status, item.kind)} · ${monthDay(item.marked_on!)}` : null;
 
@@ -144,13 +146,22 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
           </section>
         ) : null}
 
-        {item.source_url ? (
-          <p className="text-sm text-muted">
-            来源：
-            <a href={item.source_url} target="_blank" rel="noreferrer" className="underline decoration-line underline-offset-4 hover:decoration-ink">
-              {/* Non-admin imports keep their source as `douban:<user id>`. */}
-              {SOURCE_LABELS[item.source.split(":")[0]] ?? item.source}
-            </a>
+        {item.source_url || canChooseArtwork ? (
+          <p className="flex gap-4 text-sm text-muted">
+            {item.source_url ? (
+              <span>
+                来源：
+                <a href={item.source_url} target="_blank" rel="noreferrer" className="underline decoration-line underline-offset-4 hover:decoration-ink">
+                  {/* Non-admin imports keep their source as `douban:<user id>`. */}
+                  {SOURCE_LABELS[item.source.split(":")[0]] ?? item.source}
+                </a>
+              </span>
+            ) : null}
+            {canChooseArtwork ? (
+              <Link to={`/@${profile.handle}/items/${item.id}/artwork`} className="underline decoration-line underline-offset-4 hover:decoration-ink">
+                更换横图
+              </Link>
+            ) : null}
           </p>
         ) : null}
 

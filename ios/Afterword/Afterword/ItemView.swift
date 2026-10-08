@@ -12,6 +12,7 @@ struct ItemView: View {
     @State private var mine = false
     @State private var error: String?
     @State private var editing = false
+    @State private var choosingArtwork = false
     @State private var summaryExpanded = false
     @State private var rateError: String?
     /// Opens the form once for an item just picked from search, which has no mark yet.
@@ -64,6 +65,16 @@ struct ItemView: View {
                         model.knownItems["\(handle)/\(id)"] = nil
                         model.marksVersion += 1
                         dismiss()
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $choosingArtwork) {
+            if let item {
+                NavigationStack {
+                    ArtworkPicker(item: item) {
+                        model.marksVersion += 1
+                        Task { await load() }
                     }
                 }
             }
@@ -226,6 +237,10 @@ struct ItemView: View {
             if mine {
                 Button(item.status == nil ? "标记" : "修改标记", systemImage: "pencil") { editing = true }
             }
+            // Items are shared, so only an admin replaces their artwork.
+            if model.me?.isAdmin == true, item.kind.hasArtwork {
+                Button("更换横图", systemImage: "photo.on.rectangle") { choosingArtwork = true }
+            }
             if let link = item.sourceUrl.flatMap(URL.init(string:)) {
                 Link(destination: link) { Label("在\(item.sourceLabel)打开", systemImage: "safari") }
             }
@@ -277,6 +292,12 @@ struct ItemView: View {
             let response: ItemResponse = try await model.api.api("GET", itemPath)
             item = response.item
             mine = response.mine
+            #if DEBUG
+            if model.debugSheet == "artwork" {
+                model.debugSheet = nil
+                choosingArtwork = true
+            }
+            #endif
             if mine, response.item.status == nil, !offeredEditor {
                 offeredEditor = true
                 editing = true

@@ -48,6 +48,8 @@ final class AppModel {
     #if DEBUG
     /// A query the 记一笔 tab searches on launch, for runs without a keyboard.
     var debugSearch: String?
+    /// A sheet the item page opens on load (`artwork`), for simulator runs that cannot tap.
+    var debugSheet: String?
     #endif
 
     var signedIn: Bool { api.isSignedIn }

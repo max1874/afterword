@@ -7,7 +7,7 @@ struct AfterwordApp: App {
     init() {
         let model = AppModel()
         #if DEBUG
-        // For runs against a dev server: `-AfterwordToken <token> -AfterwordTab add -AfterwordOpen /@max/items/<id>`.
+        // For runs against a dev server: `-AfterwordToken <token> -AfterwordTab add -AfterwordOpen /@max/items/<id> -AfterwordSheet artwork`.
         let defaults = UserDefaults.standard
         if let token = defaults.string(forKey: "AfterwordToken") { model.api.setToken(token) }
         switch defaults.string(forKey: "AfterwordTab") {
@@ -17,6 +17,7 @@ struct AfterwordApp: App {
         default: break
         }
         model.debugSearch = defaults.string(forKey: "AfterwordSearch")
+        model.debugSheet = defaults.string(forKey: "AfterwordSheet")
         if let path = defaults.string(forKey: "AfterwordOpen"), let url = model.api.url(for: path) { model.open(url) }
         #endif
         _model = State(initialValue: model)

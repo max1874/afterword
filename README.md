@@ -35,6 +35,8 @@ npx wrangler secret put OWNER_PASSWORD    # 只在 /setup 创建第一个通行�
 npx wrangler secret put TMDB_API_KEY      # 可选
 npx wrangler secret put GOOGLE_BOOKS_API_KEY  # 可选
 npx wrangler secret put STEAMGRIDDB_API_KEY   # 可选，游戏横图
+npx wrangler secret put TWITCH_CLIENT_ID       # 可选，IGDB 游戏官方图
+npx wrangler secret put TWITCH_CLIENT_SECRET
 
 npm run deploy
 ```
@@ -52,7 +54,7 @@ npm run deploy
 | 漫画 | Bangumi | — |
 | 游戏 | Bangumi | — |
 
-首页横卡和条目页的横图：影视来自 TMDB（需 `TMDB_API_KEY`），游戏先找 Steam，再找 SteamGridDB（需 `STEAMGRIDDB_API_KEY`）。豆瓣导入的条目，简介和资料从豆瓣补全。
+首页横卡和条目页的横图：影视来自 TMDB（需 `TMDB_API_KEY`），游戏先找 Steam，再找 IGDB 官方图（需 `TWITCH_CLIENT_ID`、`TWITCH_CLIENT_SECRET`），最后找 SteamGridDB（需 `STEAMGRIDDB_API_KEY`）。机器选得不好时，管理员可以在条目页点“更换横图”从各来源的候选里挑一张。豆瓣导入的条目，简介和资料从豆瓣补全。
 
 ## iOS App
 

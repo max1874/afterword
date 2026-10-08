@@ -32,7 +32,7 @@ import {
   today,
   type Item,
 } from "~/lib/db.server";
-import { fillDetails, fillDetailsNow } from "~/lib/details.server";
+import { artworkChoices, chooseArtwork, fillDetails, fillDetailsNow, hasArtwork } from "~/lib/details.server";
 import { backdropSrc, coverSrc, factsOf, previewSrc } from "~/lib/format";
 import { IMPORT_BATCH_SIZE, importRows } from "~/lib/import.server";
 import { isKind, isStatus } from "~/lib/kinds";
@@ -188,6 +188,31 @@ on("DELETE", "marks/:id", async ({ request, params }) => {
   const viewer = await viewerOrThrow(request);
   await deleteMark(viewer.id, params[0]);
   return json({ ok: true });
+});
+
+// Artwork: items are a shared catalog, so only an admin replaces it.
+
+async function artworkItem(request: Request, id: string) {
+  const viewer = await viewerOrThrow(request);
+  if (!viewer.is_admin) throw new ApiError(403, "只有管理员可以更换横图");
+  const item = await getItem(id, viewer.id);
+  if (!item || !hasArtwork(item)) throw new ApiError(404, "没有这个条目");
+  return { viewer, item };
+}
+
+on("GET", "items/:id/artwork", async ({ request, params }) => {
+  const { item } = await artworkItem(request, params[0]);
+  // `current` is the source URL of the artwork in use, matching one choice's `url`.
+  return json({ current: item.backdrop_url ?? null, choices: await artworkChoices(item) });
+});
+
+on("PUT", "items/:id/artwork", async ({ request, params }) => {
+  const { viewer, item } = await artworkItem(request, params[0]);
+  const { url } = await body(request);
+  if (url !== null && typeof url !== "string") throw new ApiError(400, "url 要是图片地址，或 null 表示不用横图");
+  const result = await chooseArtwork(item, url || null);
+  if ("error" in result) throw new ApiError(400, result.error);
+  return json({ item: withCover((await getItem(params[0], viewer.id))!) });
 });
 
 // Adding works
