@@ -4,6 +4,12 @@ export function coverSrc(item: { cover_key: string | null; cover_url: string | n
   return item.cover_url;
 }
 
+/** Landscape artwork URL, like `coverSrc`; null for items without any (books, comics, no match). */
+export function backdropSrc(item: { backdrop_key?: string | null; backdrop_url?: string | null }) {
+  if (item.backdrop_key) return `/${item.backdrop_key}`;
+  return item.backdrop_url ?? null;
+}
+
 /** Search-result thumbnail; Douban images go through the signed-in proxy. */
 export function previewSrc(url: string | null) {
   if (url && /^https:\/\/[^/]+\.doubanio\.com\//.test(url)) return `/cover-proxy?url=${encodeURIComponent(url)}`;

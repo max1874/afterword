@@ -15,6 +15,7 @@ import {
   spendRecoveryCode,
   unusedRecoveryCodes,
 } from "~/lib/accounts.server";
+import { fillBackdrops } from "~/lib/backdrops.server";
 import { addManualItem, parseMark, pickItem } from "~/lib/catalog.server";
 import {
   countByKindAndStatus,
@@ -28,7 +29,7 @@ import {
   today,
   type Item,
 } from "~/lib/db.server";
-import { coverSrc, previewSrc } from "~/lib/format";
+import { backdropSrc, coverSrc, previewSrc } from "~/lib/format";
 import { IMPORT_BATCH_SIZE, importRows } from "~/lib/import.server";
 import { isKind, isStatus } from "~/lib/kinds";
 import { searchAll } from "~/lib/providers.server";
@@ -77,8 +78,8 @@ function fields(value: Record<string, unknown>) {
   return { get: (name: string) => value[name] ?? null };
 }
 
-function withCover<T extends Pick<Item, "cover_key" | "cover_url">>(item: T) {
-  return { ...item, cover: coverSrc(item) };
+function withCover<T extends Pick<Item, "cover_key" | "cover_url" | "backdrop_key" | "backdrop_url">>(item: T) {
+  return { ...item, cover: coverSrc(item), backdrop: backdropSrc(item) };
 }
 
 type Handler = (args: { request: Request; params: string[]; url: URL }) => Promise<Response>;
@@ -128,8 +129,9 @@ on("GET", "users/:handle/marks", async ({ params, url }) => {
   const kind = isKind(kindParam) ? kindParam : undefined;
   const status = isStatus(statusParam) ? statusParam : undefined;
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+  const until = Number(url.searchParams.get("until")) || undefined;
   const [{ items, hasMore }, yearCounts] = await Promise.all([
-    listMarked({ userId: user.id, kind, status, page }),
+    listMarked({ userId: user.id, kind, status, until, page }),
     countByYear({ userId: user.id, kind, status }),
   ]);
   return json({ page, hasMore, yearCounts, items: items.map(withCover) });
@@ -140,6 +142,7 @@ on("GET", "users/:handle/shelves", async ({ params, url }) => {
   const kindParam = url.searchParams.get("kind");
   const kind = isKind(kindParam) ? kindParam : undefined;
   const shelves = await listShelves({ userId: user.id, kind });
+  fillBackdrops(shelves.doing);
   return json({
     doing: shelves.doing.map(withCover),
     done: shelves.done.map(withCover),
@@ -153,6 +156,7 @@ on("GET", "users/:handle/items/:id", async ({ request, params }) => {
   const mine = viewer?.id === user.id;
   const item = await getItem(params[1], user.id);
   if (!item || (!mine && !item.status)) throw new ApiError(404, "没有这条标记");
+  fillBackdrops([item]);
   return json({ mine, item: withCover(item) });
 });
 

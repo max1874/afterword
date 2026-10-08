@@ -15,6 +15,10 @@ export type Item = {
   source: string;
   source_id: string | null;
   source_url: string | null;
+  /** Landscape artwork; absent until migration 0004, null until looked up (see backdrops.server). */
+  backdrop_url?: string | null;
+  backdrop_key?: string | null;
+  backdrop_checked_at?: string | null;
 };
 
 export type Mark = {
@@ -39,7 +43,8 @@ export function today() {
   return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 }
 
-type MarkFilter = { userId: string; kind?: Kind; status?: Status };
+/** `until` is a year: marks from that year and before, for jumping down the library. */
+type MarkFilter = { userId: string; kind?: Kind; status?: Status; until?: number };
 
 function whereClause(filter: MarkFilter) {
   const where = ["m.user_id = ?"];
@@ -51,6 +56,10 @@ function whereClause(filter: MarkFilter) {
   if (filter.status) {
     where.push("m.status = ?");
     params.push(filter.status);
+  }
+  if (filter.until) {
+    where.push("m.marked_on < ?");
+    params.push(`${filter.until + 1}`);
   }
   return { clause: `WHERE ${where.join(" AND ")}`, params };
 }

@@ -100,7 +100,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
       <Recovery left={loaderData.recoveryLeft} handle={loaderData.me.handle} />
       {loaderData.invites ? <Invites invites={loaderData.invites} origin={loaderData.origin} /> : null}
       <Form method="post" action="/logout" className="border-t border-line pt-6">
-        <button className="text-sm text-muted hover:text-accent">退出登录</button>
+        <button className="text-sm text-muted hover:text-danger">退出登录</button>
       </Form>
     </div>
   );
@@ -211,7 +211,7 @@ function Passkeys({ data: loaderData }: { data: Data }) {
             >
               <input type="hidden" name="intent" value="delete-passkey" />
               <input type="hidden" name="id" value={p.id} />
-              <button disabled={passkeys.length <= 1} className="text-sm text-muted hover:text-accent disabled:opacity-40">
+              <button disabled={passkeys.length <= 1} className="text-sm text-muted hover:text-danger disabled:opacity-40">
                 删除
               </button>
             </fetcher.Form>
@@ -264,7 +264,7 @@ function Sessions({ sessions }: { sessions: Data["sessions"] }) {
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="delete-session" />
                 <input type="hidden" name="id" value={s.id} />
-                <button className="text-sm text-muted hover:text-accent">退出</button>
+                <button className="text-sm text-muted hover:text-danger">退出</button>
               </fetcher.Form>
             )}
           </li>
@@ -273,7 +273,7 @@ function Sessions({ sessions }: { sessions: Data["sessions"] }) {
       {sessions.length > 1 ? (
         <fetcher.Form method="post" className="mt-4">
           <input type="hidden" name="intent" value="delete-other-sessions" />
-          <button className="text-sm text-muted underline underline-offset-4 hover:text-accent">退出其他所有设备</button>
+          <button className="text-sm text-muted underline underline-offset-4 hover:text-danger">退出其他所有设备</button>
         </fetcher.Form>
       ) : null}
     </Section>
@@ -347,7 +347,7 @@ function Invites({ invites, origin }: { invites: NonNullable<Data["invites"]>; o
                     <fetcher.Form method="post">
                       <input type="hidden" name="intent" value="revoke-invite" />
                       <input type="hidden" name="code" value={invite.code} />
-                      <button className="text-muted hover:text-accent">作废</button>
+                      <button className="text-muted hover:text-danger">作废</button>
                     </fetcher.Form>
                   </div>
                 )}

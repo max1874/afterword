@@ -1,6 +1,6 @@
-import { Link, useMatches, useSearchParams } from "react-router";
+import { Link, useMatches } from "react-router";
 
-import { isKind, KINDS, kindLabel, type Kind } from "~/lib/kinds";
+import type { Kind } from "~/lib/kinds";
 
 /** Route data a person's pages share, so the header can switch kinds and views for them. */
 export type ProfileNavData = { profile: { handle: string; name: string }; view: "home" | "library" };
@@ -10,41 +10,32 @@ export function useProfileNav() {
   return match?.loaderData as ProfileNavData | undefined;
 }
 
-export function profileHref(handle: string, view: "home" | "library", params: { kind?: Kind; status?: string }) {
+export function profileHref(handle: string, view: "home" | "library", params: { kind?: Kind; status?: string; until?: number }) {
   const query = new URLSearchParams();
   if (params.kind) query.set("kind", params.kind);
   if (params.status) query.set("status", params.status);
+  if (params.until) query.set("until", String(params.until));
   const base = view === "home" ? `/@${handle}` : `/@${handle}/library`;
   return query.size ? `${base}?${query}` : base;
 }
 
-/** 全部 / 影视 / 书 / 漫画 / 游戏, kept on the current page; plus the way between shelves and library. */
-export function ProfileNav({ data }: { data: ProfileNavData }) {
-  const [params] = useSearchParams();
-  const kind = isKind(params.get("kind")) ? (params.get("kind") as Kind) : undefined;
-  const status = data.view === "library" ? (params.get("status") ?? undefined) : undefined;
-  const { handle } = data.profile;
-  const segments: [Kind | undefined, string][] = [[undefined, "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])];
-
+/** 首页 / 资料库 for the person whose pages these are, as one glass capsule. */
+export function ProfileNav({ handle, view }: { handle: string; view?: "home" | "library" }) {
+  const tabs: ["home" | "library", string][] = [
+    ["home", "首页"],
+    ["library", "资料库"],
+  ];
   return (
-    <nav className="flex items-center gap-2 overflow-x-auto text-[13px] font-medium [scrollbar-width:none]">
-      <div className="flex shrink-0 rounded-[10px] bg-card p-[3px]">
-        {segments.map(([k, label]) => (
-          <Link
-            key={label}
-            to={profileHref(handle, data.view, { kind: k, status })}
-            className={`rounded-[8px] px-3 py-[5px] transition sm:px-4 ${kind === k ? "bg-paper shadow-[0_1px_3px_rgba(0,0,0,0.12)] dark:bg-line" : "hover:text-muted"}`}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
-      <Link
-        to={profileHref(handle, data.view === "home" ? "library" : "home", { kind })}
-        className={`shrink-0 rounded-[10px] px-3 py-[8px] transition sm:px-4 ${data.view === "library" ? "bg-ink text-paper" : "bg-card hover:text-muted"}`}
-      >
-        资料库
-      </Link>
+    <nav className="flex rounded-full bg-card/80 p-1 text-sm font-semibold shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.3)] backdrop-blur">
+      {tabs.map(([v, label]) => (
+        <Link
+          key={v}
+          to={profileHref(handle, v, {})}
+          className={`rounded-full px-4 py-1.5 transition ${view === v ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+        >
+          {label}
+        </Link>
+      ))}
     </nav>
   );
 }

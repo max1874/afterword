@@ -1,14 +1,15 @@
-import { data, Form, Link, redirect } from "react-router";
+import { data, Form, Link, redirect, useNavigation } from "react-router";
 
 import type { Route } from "./+types/item";
 import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
 import { profileFromParam } from "~/lib/accounts.server";
+import { fillBackdrops } from "~/lib/backdrops.server";
 import { parseMark } from "~/lib/catalog.server";
 import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
-import { coverSrc, joinText, monthDay } from "~/lib/format";
-import { creatorLabel, kindLabel, statusLabel } from "~/lib/kinds";
+import { backdropSrc, coverSrc, joinText, monthDay } from "~/lib/format";
+import { creatorLabel, isStatus, kindLabel, STATUSES, statusLabel, type Kind, type Status } from "~/lib/kinds";
 import { getViewer } from "~/lib/session.server";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -29,8 +30,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const item = await getItem(params.id, user.id);
   // Someone else's page only shows what they marked; your own also offers unmarked items to mark.
   if (!item || (!mine && !item.status)) throw data(null, { status: 404 });
+  fillBackdrops([item]);
   return {
-    item: { ...item, cover: coverSrc(item) },
+    item: { ...item, cover: coverSrc(item), backdrop: backdropSrc(item) },
     profile: { handle: user.handle, name: user.name },
     mine,
     viewerHandle: viewer?.handle ?? null,
@@ -49,6 +51,20 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect(`/@${user.handle}`);
   }
 
+  // The round buttons: change only the status, keeping the rest; a new status starts today.
+  if (form.get("intent") === "status") {
+    const status = form.get("status");
+    const current = await getItem(params.id, user.id);
+    if (!isStatus(status) || !current) throw data(null, { status: 400 });
+    await saveMark(user.id, params.id, {
+      status,
+      rating: status === "wish" ? null : (current.rating ?? null),
+      comment: current.comment ?? null,
+      marked_on: current.status === status && current.marked_on ? current.marked_on : today(),
+    });
+    return redirect(`/@${user.handle}/items/${params.id}`);
+  }
+
   const parsed = parseMark(form);
   if ("error" in parsed) return data({ error: parsed.error }, { status: 400 });
   if (!(await getItem(params.id, user.id))) throw data(null, { status: 404 });
@@ -59,35 +75,39 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function ItemPage({ loaderData, actionData }: Route.ComponentProps) {
   const { item, profile, mine, viewerHandle, today } = loaderData;
   const meta = [item.original_title, kindLabel(item.kind), item.year].filter(Boolean).join(" · ");
+  const statusText = item.status ? `${statusLabel(item.status, item.kind)} · ${monthDay(item.marked_on!)}` : null;
 
   return (
     <article>
-      <Backdrop src={item.cover} />
-      <header className="flex flex-col items-center text-center sm:flex-row sm:items-end sm:gap-10 sm:text-left">
-        <Cover src={item.cover} title={item.title} className="w-[186px] shrink-0 sm:w-[220px]" />
-        <div className="mt-6 min-w-0 sm:mt-0">
-          <h1 className="text-[26px] leading-tight font-bold tracking-[-0.01em] sm:text-[40px]">{item.title}</h1>
+      {item.backdrop ? <Artwork src={item.backdrop} /> : <Backdrop src={item.cover} />}
+      <header
+        className={`flex flex-col items-center text-center sm:flex-row sm:items-end sm:gap-10 sm:text-left ${item.backdrop ? "pt-[min(34vw,330px)]" : ""}`}
+      >
+        {item.backdrop ? null : <Cover src={item.cover} title={item.title} className="w-[186px] shrink-0 sm:w-[220px]" />}
+        <div className={`min-w-0 ${item.backdrop ? "" : "mt-6 sm:mt-0"}`}>
+          <h1 className="text-[28px] leading-tight font-extrabold tracking-[-0.01em] sm:text-[44px]">{item.title}</h1>
           <p className="mt-1.5 text-[15px] text-muted">{meta}</p>
           {item.creators ? (
             <p className="mt-0.5 text-[15px] text-muted">
               {creatorLabel(item.kind)} {item.creators}
             </p>
           ) : null}
-          <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-4">
-            {item.status ? (
-              mine ? (
-                <StatusPill href="#mark">
-                  ✓ {statusLabel(item.status, item.kind)} · {monthDay(item.marked_on!)}
-                </StatusPill>
-              ) : (
-                <StatusPill>
-                  {joinText(profile.name, statusLabel(item.status, item.kind))} · {monthDay(item.marked_on!)}
-                </StatusPill>
-              )
-            ) : mine ? (
-              <StatusPill href="#mark">＋ 标记这部作品</StatusPill>
+
+          <div className="mx-auto mt-5 w-full max-w-sm sm:mx-0">
+            {mine ? (
+              <a
+                href="#mark"
+                className="flex h-12 items-center justify-center rounded-full bg-ink text-[16px] font-semibold text-paper transition hover:opacity-85"
+              >
+                {statusText ? `✓ ${statusText}` : "＋ 标记这部作品"}
+              </a>
+            ) : statusText ? (
+              <p className="flex h-12 items-center justify-center rounded-full bg-card/80 text-[15px] font-semibold backdrop-blur">
+                {joinText(profile.name, statusText)}
+              </p>
             ) : null}
-            {item.rating ? <Stars rating={item.rating} className="text-lg" /> : null}
+            {mine ? <QuickStatus kind={item.kind} current={item.status ?? null} /> : null}
+            {item.rating ? <Stars rating={item.rating} className="mt-3 block text-center text-lg sm:text-left" /> : null}
           </div>
         </div>
       </header>
@@ -110,7 +130,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
         {item.source_url ? (
           <p className="text-sm text-muted">
             来源：
-            <a href={item.source_url} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-ink">
+            <a href={item.source_url} target="_blank" rel="noreferrer" className="text-accent hover:opacity-75">
               {/* Non-admin imports keep their source as `douban:<user id>`. */}
               {SOURCE_LABELS[item.source.split(":")[0]] ?? item.source}
             </a>
@@ -123,7 +143,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
             {actionData && "error" in actionData ? (
               <p className="mb-4 text-sm text-danger">{actionData.error}</p>
             ) : null}
-            <MarkForm key={item.marked_on ?? "new"} kind={item.kind} initial={item} today={today} />
+            <MarkForm key={`${item.status}:${item.marked_on ?? "new"}`} kind={item.kind} initial={item} today={today} />
             {item.status ? (
               <Form
                 method="post"
@@ -141,7 +161,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
 
         {!mine && viewerHandle ? (
           <p className="text-sm">
-            <Link to={`/@${viewerHandle}/items/${item.id}`} className="underline underline-offset-4">
+            <Link to={`/@${viewerHandle}/items/${item.id}`} className="text-accent hover:opacity-75">
               我的标记
             </Link>
           </p>
@@ -157,6 +177,49 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
   );
 }
 
+/** 看过 / 在看 / 想看 as round buttons, like Infuse's row under Resume: one press changes the status. */
+function QuickStatus({ kind, current }: { kind: Kind; current: Status | null }) {
+  const navigation = useNavigation();
+  const pending = navigation.formData?.get("intent") === "status" ? navigation.formData.get("status") : null;
+  const icons: Record<Status, React.ReactNode> = {
+    done: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+    doing: <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none" />,
+    wish: <path d="M7 4h10v16l-5-3.6L7 20z" />,
+  };
+  return (
+    <Form method="post" className="mt-3 flex gap-2">
+      <input type="hidden" name="intent" value="status" />
+      {STATUSES.map((s) => {
+        const on = (pending ?? current) === s;
+        return (
+          <button
+            key={s}
+            name="status"
+            value={s}
+            title={statusLabel(s, kind)}
+            className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition ${on ? "bg-accent/20 text-accent shadow-[inset_0_0_0_1px_var(--accent)]" : "bg-card/80 backdrop-blur hover:text-accent"}`}
+          >
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              {icons[s]}
+            </svg>
+            {statusLabel(s, kind)}
+          </button>
+        );
+      })}
+    </Form>
+  );
+}
+
+/** Landscape artwork across the top of the page, fading into it. */
+function Artwork({ src }: { src: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(62vw,620px)] overflow-hidden">
+      <img src={src} alt="" referrerPolicy="no-referrer" className="size-full object-cover object-top" />
+      <div className="absolute inset-0 bg-gradient-to-b from-paper/30 from-0% via-transparent via-25% to-paper to-95%" />
+    </div>
+  );
+}
+
 /** The cover, blurred and faded into the page behind the top of it, edge to edge. */
 function Backdrop({ src }: { src: string | null }) {
   if (!src) return null;
@@ -165,17 +228,5 @@ function Backdrop({ src }: { src: string | null }) {
       <img src={src} alt="" referrerPolicy="no-referrer" className="size-full scale-125 object-cover opacity-50 blur-[60px] saturate-150" />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-paper/40 to-paper" />
     </div>
-  );
-}
-
-/** Your own mark is a button to the form; someone else's is a label. */
-function StatusPill({ href, children }: { href?: string; children: React.ReactNode }) {
-  const className = "inline-flex h-11 items-center rounded-full px-6 text-[15px] font-semibold";
-  return href ? (
-    <a href={href} className={`${className} bg-ink text-paper transition hover:opacity-85`}>
-      {children}
-    </a>
-  ) : (
-    <span className={`${className} bg-card/80 backdrop-blur`}>{children}</span>
   );
 }

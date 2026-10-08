@@ -1,13 +1,13 @@
 @import "tailwindcss" source(".");
 
-/* Apple's neutrals (apple.com and iOS system colors): the covers are the only colour. */
+/* Apple's neutrals with one orange accent, as in Infuse: the covers carry the colour. */
 :root {
   --paper: #ffffff;
   --card: #f5f5f7;
   --ink: #1d1d1f;
   --muted: #6e6e73;
   --line: #d2d2d7;
-  --accent: #1d1d1f;
+  --accent: #f56300;
   --accent-ink: #ffffff;
   --danger: #d70015;
   color-scheme: light;
@@ -20,7 +20,7 @@
     --ink: #f5f5f7;
     --muted: #98989d;
     --line: #38383a;
-    --accent: #f5f5f7;
+    --accent: #ff9f0a;
     --accent-ink: #000000;
     --danger: #ff453a;
     color-scheme: dark;

@@ -12,6 +12,8 @@ import {
   genericStatusLabel,
   isKind,
   isStatus,
+  KINDS,
+  kindLabel,
   STATUSES,
   statusLabel,
   total,
@@ -33,8 +35,9 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
   const kind = isKind(params.get("kind")) ? (params.get("kind") as Kind) : undefined;
   const status = isStatus(params.get("status")) ? (params.get("status") as Status) : undefined;
   const page = Math.max(1, Number(params.get("page")) || 1);
+  const until = Number(params.get("until")) || undefined;
   const [{ items, hasMore }, counts, yearCounts] = await Promise.all([
-    listMarked({ userId: user.id, kind, status, page }),
+    listMarked({ userId: user.id, kind, status, until, page }),
     countByKindAndStatus(user.id),
     countByYear({ userId: user.id, kind, status }),
   ]);
@@ -44,6 +47,7 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
     mine: viewer?.id === user.id,
     kind,
     status,
+    until,
     page,
     hasMore,
     counts,
@@ -53,36 +57,79 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
 }
 
 export default function Library({ loaderData }: Route.ComponentProps) {
-  const { profile, mine, kind, status, counts, items } = loaderData;
+  const { profile, mine, kind, status, until, counts, items, yearCounts } = loaderData;
   const { handle } = profile;
+  const years = Object.keys(yearCounts).sort().reverse();
 
   return (
     <>
       <PageTitle profile={profile} mine={mine} title="资料库" />
-      <nav className="mt-4 mb-9 flex flex-wrap gap-2 text-sm">
-        <Chip to={profileHref(handle, "library", { kind })} active={!status}>
-          全部 {total(counts, kind)}
-        </Chip>
-        {STATUSES.map((s) => (
-          <Chip key={s} to={profileHref(handle, "library", { kind, status: s })} active={status === s}>
-            {kind ? statusLabel(s, kind) : genericStatusLabel(s)} {total(counts, kind, s)}
-          </Chip>
-        ))}
-      </nav>
+      <div className="mt-4 mb-8 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-3">
+        <Segmented
+          items={[[undefined, "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])]}
+          active={kind}
+          href={(k) => profileHref(handle, "library", { kind: k, status })}
+        />
+        <Segmented
+          items={[[undefined, `全部 ${total(counts, kind)}`], ...STATUSES.map((s): [Status, string] => [s, `${kind ? statusLabel(s, kind) : genericStatusLabel(s)} ${total(counts, kind, s)}`])]}
+          active={status}
+          href={(s) => profileHref(handle, "library", { kind, status: s })}
+        />
+      </div>
 
       {items.length === 0 ? (
         <div className="py-20 text-center text-muted">
           <p className="text-xl">这里还空着。</p>
           {mine ? (
-            <Link to="/add" className="mt-4 inline-block text-ink underline underline-offset-4">
+            <Link to="/add" className="mt-4 inline-block text-accent">
               记下第一部作品
             </Link>
           ) : null}
         </div>
       ) : (
-        <Timeline key={`${handle}:${kind}:${status}`} first={loaderData} />
+        <div className="relative">
+          <Timeline key={`${handle}:${kind}:${status}:${until}`} first={loaderData} />
+          {years.length > 1 ? (
+            /* Jump to a year, like Infuse's letter index down the side. */
+            <nav className="fixed top-1/2 right-1 z-10 flex -translate-y-1/2 flex-col items-center gap-0.5 text-[11px] font-bold text-accent sm:right-3">
+              {years.map((y) => (
+                <Link
+                  key={y}
+                  to={profileHref(handle, "library", { kind, status, until: Number(y) })}
+                  className={`rounded px-1 py-px leading-tight ${until === Number(y) ? "bg-accent text-accent-ink" : "hover:opacity-70"}`}
+                >
+                  {y.slice(2)}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
+        </div>
       )}
     </>
+  );
+}
+
+function Segmented<T extends string>({
+  items,
+  active,
+  href,
+}: {
+  items: [T | undefined, string][];
+  active: T | undefined;
+  href: (value: T | undefined) => string;
+}) {
+  return (
+    <nav className="flex overflow-x-auto rounded-full bg-card p-1 text-sm font-semibold [scrollbar-width:none] sm:inline-flex">
+      {items.map(([value, label]) => (
+        <Link
+          key={label}
+          to={href(value)}
+          className={`shrink-0 rounded-full px-3.5 py-1.5 whitespace-nowrap transition ${active === value ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 
@@ -90,7 +137,7 @@ type Page = Route.ComponentProps["loaderData"];
 
 /** Year-grouped cover wall that loads older marks as you scroll down. */
 function Timeline({ first }: { first: Page }) {
-  const { kind, status, yearCounts } = first;
+  const { kind, status, until, yearCounts } = first;
   const { handle } = first.profile;
   const [items, setItems] = useState(first.items);
   const [page, setPage] = useState(1);
@@ -112,9 +159,9 @@ function Timeline({ first }: { first: Page }) {
 
   const loadMore = useCallback(() => {
     if (loading || !hasMore) return;
-    const href = profileHref(handle, "library", { kind, status });
+    const href = profileHref(handle, "library", { kind, status, until });
     fetcher.load(`${href}${href.includes("?") ? "&" : "?"}page=${page + 1}`);
-  }, [loading, hasMore, handle, kind, status, page, fetcher.load]);
+  }, [loading, hasMore, handle, kind, status, until, page, fetcher.load]);
 
   useEffect(() => {
     const el = sentinel.current;
@@ -140,7 +187,7 @@ function Timeline({ first }: { first: Page }) {
             <span className="text-[22px]">{year}</span>
             <span className="text-[13px] font-medium text-muted">{yearCounts[year] ?? group.length} 条</span>
           </h2>
-          <ul className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-5 sm:gap-x-5 md:grid-cols-7">
+          <ul className="grid grid-cols-3 gap-x-3 gap-y-6 pr-5 sm:grid-cols-5 sm:gap-x-5 md:grid-cols-7">
             {group.map((item) => (
               <li key={item.id} className="min-w-0">
                 <Link to={`/@${handle}/items/${item.id}`} className="group block">
@@ -166,16 +213,5 @@ function Timeline({ first }: { first: Page }) {
         )}
       </div>
     </>
-  );
-}
-
-function Chip({ to, active, children }: { to: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      to={to}
-      className={`rounded-full px-3.5 py-1.5 transition ${active ? "bg-ink text-paper" : "bg-card text-ink hover:text-muted"}`}
-    >
-      {children}
-    </Link>
   );
 }

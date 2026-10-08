@@ -47,27 +47,30 @@ function Header() {
   const root = useRoot();
   const nav = useProfileNav();
   return (
-    <header className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 pt-6 pb-8 sm:px-6">
+    <header className="mx-auto flex max-w-6xl items-center gap-3 px-4 pt-5 pb-6 sm:gap-6 sm:px-6">
       <Link to="/" className="flex items-center gap-2.5">
         {/* The app icon, same as the favicon. */}
         <img src="/favicon.svg" alt="" className="size-8" />
-        <span className="text-[19px] font-semibold">后记</span>
+        <span className="hidden text-[19px] font-semibold sm:inline">后记</span>
       </Link>
-      {/* On phones the kinds take their own row under the logo. */}
-      {nav ? (
-        <div className="order-last w-full min-w-0 md:order-none md:flex md:w-auto md:flex-1 md:justify-center">
-          <ProfileNav data={nav} />
-        </div>
-      ) : (
-        <div className="flex-1" />
-      )}
+      <div className="flex flex-1 justify-center">
+        {/* Someone's pages switch between their home and library; elsewhere, your own. */}
+        {nav ? (
+          <ProfileNav handle={nav.profile.handle} view={nav.view} />
+        ) : root?.viewer ? (
+          <ProfileNav handle={root.viewer.handle} />
+        ) : null}
+      </div>
       {root?.viewer ? (
-        <nav className="ml-auto flex items-center gap-4 text-sm md:ml-0">
+        <nav className="flex items-center gap-3 text-sm">
           <Link
             to="/add"
-            className="rounded-full bg-ink px-4 py-1.5 font-semibold text-paper transition hover:opacity-85"
+            title="记一笔"
+            className="grid h-9 place-items-center rounded-full bg-accent px-3.5 font-semibold text-accent-ink transition hover:opacity-85"
           >
-            ＋ 记一笔
+            <span>
+              ＋<span className="hidden sm:inline"> 记一笔</span>
+            </span>
           </Link>
           <Link
             to="/settings"
