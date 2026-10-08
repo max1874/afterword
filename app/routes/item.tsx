@@ -4,7 +4,7 @@ import type { Route } from "./+types/item";
 import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
-import { profileFromParam } from "~/lib/accounts.server";
+import { profileFromParam, usesRatings } from "~/lib/accounts.server";
 import { fillBackdrops } from "~/lib/backdrops.server";
 import { parseMark } from "~/lib/catalog.server";
 import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
@@ -35,6 +35,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     item: { ...item, cover: coverSrc(item), backdrop: backdropSrc(item) },
     profile: { handle: user.handle, name: user.name },
     mine,
+    ratings: usesRatings(user),
     viewerHandle: viewer?.handle ?? null,
     today: today(),
   };
@@ -73,7 +74,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function ItemPage({ loaderData, actionData }: Route.ComponentProps) {
-  const { item, profile, mine, viewerHandle, today } = loaderData;
+  const { item, profile, mine, ratings, viewerHandle, today } = loaderData;
   const meta = [item.original_title, kindLabel(item.kind), item.year].filter(Boolean).join(" · ");
   const statusText = item.status ? `${statusLabel(item.status, item.kind)} · ${monthDay(item.marked_on!)}` : null;
 
@@ -107,7 +108,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
               </p>
             ) : null}
             {mine ? <QuickStatus kind={item.kind} current={item.status ?? null} /> : null}
-            {item.rating ? <Stars rating={item.rating} className="mt-3 block text-center text-lg sm:text-left" /> : null}
+            {ratings && item.rating ? <Stars rating={item.rating} className="mt-3 block text-center text-lg sm:text-left" /> : null}
           </div>
         </div>
       </header>
@@ -143,7 +144,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
             {actionData && "error" in actionData ? (
               <p className="mb-4 text-sm text-danger">{actionData.error}</p>
             ) : null}
-            <MarkForm key={`${item.status}:${item.marked_on ?? "new"}`} kind={item.kind} initial={item} today={today} />
+            <MarkForm key={`${item.status}:${item.marked_on ?? "new"}`} kind={item.kind} initial={item} today={today} ratings={ratings} />
             {item.status ? (
               <Form
                 method="post"

@@ -59,7 +59,11 @@ nonisolated struct Me: Decodable, Equatable {
     let handle: String
     let name: String
     let isAdmin: Bool
+    /// Off when star ratings are turned off in settings; missing from older servers and caches.
+    let ratings: Bool?
     let today: String
+
+    var usesRatings: Bool { ratings ?? true }
 }
 
 nonisolated struct KindStatusCount: Decodable, Hashable {
@@ -71,7 +75,10 @@ nonisolated struct KindStatusCount: Decodable, Hashable {
 nonisolated struct Profile: Decodable {
     let handle: String
     let name: String
+    let ratings: Bool?
     let counts: [KindStatusCount]
+
+    var usesRatings: Bool { ratings ?? true }
 
     func total(kind: Kind? = nil, status: Status? = nil) -> Int {
         counts.filter { (kind == nil || $0.kind == kind) && (status == nil || $0.status == status) }

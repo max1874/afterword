@@ -3,7 +3,22 @@ import { data } from "react-router";
 
 import { base64url, sha256Hex, sqlTime } from "./session.server";
 
-export type User = { id: string; handle: string; name: string; is_admin: number; created_at: string };
+export type User = {
+  id: string;
+  handle: string;
+  name: string;
+  is_admin: number;
+  created_at: string;
+  /** 0 when the person turned star ratings off; missing before migration 0005. */
+  ratings?: number;
+};
+
+/** Whether this person rates what they mark; on unless they turned it off in settings. */
+export const usesRatings = (user: Pick<User, "ratings"> | null | undefined) => user?.ratings !== 0;
+
+export async function saveRatings(userId: string, on: boolean) {
+  await env.DB.prepare("UPDATE users SET ratings = ? WHERE id = ?").bind(on ? 1 : 0, userId).run();
+}
 
 export type Passkey = {
   id: string;

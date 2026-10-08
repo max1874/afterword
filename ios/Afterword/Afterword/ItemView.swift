@@ -104,13 +104,13 @@ struct ItemView: View {
             markRow(item).padding(.top, 20)
             if mine { quickStatus(item).padding(.top, 10) }
 
-            if mine, item.status != nil, item.status != .wish {
+            if mine, item.status != nil, item.status != .wish, model.me?.usesRatings ?? true {
                 StarInput(rating: Binding(get: { item.rating }, set: { rating in Task { await rate(item, rating) } }))
                     .padding(.top, 16)
                 if let rateError {
                     Text(rateError).font(.footnote).foregroundStyle(Color.danger).padding(.top, 6)
                 }
-            } else if !mine, item.rating != nil {
+            } else if !mine, ownerRatings, item.rating != nil {
                 Stars(rating: item.rating).scaleEffect(1.4).padding(.top, 14)
             }
 
@@ -224,6 +224,7 @@ struct ItemView: View {
     }
 
     @State private var ownerName = ""
+    @State private var ownerRatings = true
 
     private var itemPath: String { "users/\(handle)/items/\(id)" }
 
@@ -267,9 +268,12 @@ struct ItemView: View {
                 editing = true
             }
             if !mine, ownerName.isEmpty {
-                ownerName = (model.api.cached("users/\(handle)") as Profile?)?.name ?? ""
+                let cached: Profile? = model.api.cached("users/\(handle)")
+                ownerName = cached?.name ?? ""
+                ownerRatings = cached?.usesRatings ?? true
                 let profile: Profile? = try? await model.api.api("GET", "users/\(handle)")
                 ownerName = profile?.name ?? "@\(handle)"
+                ownerRatings = profile?.usesRatings ?? ownerRatings
             }
         } catch is CancellationError {
         } catch let failure as APIError where failure.status == 404 {
@@ -309,7 +313,8 @@ struct MarkEditor: View {
                 .listRowInsets(EdgeInsets())
             }
             Section {
-                if status != .wish {
+                // With ratings off the saved rating is kept and sent back unchanged.
+                if status != .wish, model.me?.usesRatings ?? true {
                     LabeledContent("评分") { StarInput(rating: $rating) }
                 }
                 DatePicker("日期", selection: $date, displayedComponents: .date)

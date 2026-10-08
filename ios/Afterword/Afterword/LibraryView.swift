@@ -171,7 +171,7 @@ struct LibraryView: View {
             HStack(spacing: 4) {
                 if status == nil, let s = item.status { Text("\(s.label(for: item.kind)) ·") }
                 Text(monthDay(item.markedOn))
-                Stars(rating: item.rating)
+                if profile?.usesRatings ?? true { Stars(rating: item.rating) }
             }
             .font(.caption2)
             .foregroundStyle(Color.muted)

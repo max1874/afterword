@@ -5,7 +5,7 @@ import type { Route } from "./+types/library";
 import { Cover } from "~/components/cover";
 import { PageTitle, profileHref } from "~/components/profile-nav";
 import { Stars } from "~/components/stars";
-import { profileFromParam } from "~/lib/accounts.server";
+import { profileFromParam, usesRatings } from "~/lib/accounts.server";
 import { countByKindAndStatus, countByYear, listMarked } from "~/lib/db.server";
 import { coverSrc, joinText, monthDay } from "~/lib/format";
 import {
@@ -45,6 +45,7 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
     profile: { handle: user.handle, name: user.name },
     view: "library" as const,
     mine: viewer?.id === user.id,
+    ratings: usesRatings(user),
     kind,
     status,
     until,
@@ -137,7 +138,7 @@ type Page = Route.ComponentProps["loaderData"];
 
 /** Year-grouped cover wall that loads older marks as you scroll down. */
 function Timeline({ first }: { first: Page }) {
-  const { kind, status, until, yearCounts } = first;
+  const { kind, status, until, ratings, yearCounts } = first;
   const { handle } = first.profile;
   const [items, setItems] = useState(first.items);
   const [page, setPage] = useState(1);
@@ -195,7 +196,7 @@ function Timeline({ first }: { first: Page }) {
                   <p className="mt-2 truncate text-[13px] font-medium">{item.title}</p>
                   <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted">
                     <span>{status ? monthDay(item.marked_on) : `${statusLabel(item.status, item.kind)} · ${monthDay(item.marked_on)}`}</span>
-                    {item.rating ? <Stars rating={item.rating} /> : null}
+                    {ratings && item.rating ? <Stars rating={item.rating} /> : null}
                   </p>
                 </Link>
               </li>

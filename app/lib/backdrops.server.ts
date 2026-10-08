@@ -98,12 +98,20 @@ async function tmdbBackdrop(item: BackdropItem) {
   if (!wanted.length) return null;
   const queries = [...new Set([item.original_title, item.title].filter((q): q is string => Boolean(q)).map(seriesName))];
   let best: { hit: TmdbHit; score: number } | null = null;
+  // Series whose name starts ours, e.g. "JOJO的奇妙冒险" for "JOJO的奇妙冒险 飙马野郎": the rest may name one of its seasons.
+  const partial: { hit: TmdbHit; rest: string }[] = [];
   for (const query of queries) {
     const [movies, series] = await Promise.all([
       tmdb<{ results: TmdbHit[] }>("search/movie", { query, ...(item.year ? { year: String(item.year) } : {}) }),
       // A season's year is not the series' first year, so series are searched without it.
       tmdb<{ results: TmdbHit[] }>("search/tv", { query }),
     ]);
+    for (const hit of series?.results ?? []) {
+      for (const name of [hit.name, hit.original_name].map(normalizeName)) {
+        const whole = wanted.find((w) => name.length >= 3 && w.length > name.length && w.startsWith(name));
+        if (whole && !partial.some((p) => p.hit.id === hit.id)) partial.push({ hit, rest: whole.slice(name.length) });
+      }
+    }
     for (const hit of [...(movies?.results ?? []), ...(series?.results ?? [])]) {
       if (!hit.backdrop_path) continue;
       const hitNames = [hit.title, hit.name, hit.original_title, hit.original_name].map(normalizeName);
@@ -115,7 +123,33 @@ async function tmdbBackdrop(item: BackdropItem) {
     }
     if (best && best.score >= 2) break;
   }
-  return best?.hit.backdrop_path ? tmdbImage(best.hit.backdrop_path) : null;
+  if (best?.hit.backdrop_path) return tmdbImage(best.hit.backdrop_path);
+  for (const { hit, rest } of partial) {
+    const still = await seasonStill(hit.id, rest);
+    if (still) return still;
+  }
+  return null;
+}
+
+type TmdbSeason = { season_number: number; name: string };
+
+/**
+ * A still from the first episode of the season named like `rest` ("飙马野郎" → "飙马野郎篇").
+ * Seasons have posters but no backdrops on TMDB, and the series backdrop would show another part.
+ */
+async function seasonStill(seriesId: number, rest: string) {
+  const series = await tmdb<{ seasons?: TmdbSeason[] }>(`tv/${seriesId}`, {});
+  const season = series?.seasons?.find((s) => {
+    const name = normalizeName(s.name).replace(/[篇章]$/, "");
+    return s.season_number > 0 && name.length >= 2 && (rest.includes(name) || name.includes(rest));
+  });
+  if (!season) return null;
+  const detail = await tmdb<{ episodes?: { still_path?: string | null }[] }>(
+    `tv/${seriesId}/season/${season.season_number}`,
+    {},
+  );
+  const still = detail?.episodes?.find((e) => e.still_path)?.still_path;
+  return still ? tmdbImage(still) : null;
 }
 
 // Steam

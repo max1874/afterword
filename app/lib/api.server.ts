@@ -6,14 +6,17 @@ import {
   deletePasskey,
   deleteSession,
   findUserByHandle,
+  getUser,
   listInvites,
   listPasskeys,
   listSessions,
   recoveryCodeStatements,
   revokeInvite,
   saveProfile,
+  saveRatings,
   spendRecoveryCode,
   unusedRecoveryCodes,
+  usesRatings,
 } from "~/lib/accounts.server";
 import { fillBackdrops } from "~/lib/backdrops.server";
 import { addManualItem, parseMark, pickItem } from "~/lib/catalog.server";
@@ -96,7 +99,15 @@ function on(method: string, path: string, handler: Handler) {
 
 on("GET", "me", async ({ request }) => {
   const viewer = await viewerOrThrow(request);
-  return json({ id: viewer.id, handle: viewer.handle, name: viewer.name, isAdmin: Boolean(viewer.is_admin), today: today() });
+  const user = await getUser(viewer.id);
+  return json({
+    id: viewer.id,
+    handle: viewer.handle,
+    name: viewer.name,
+    isAdmin: Boolean(viewer.is_admin),
+    ratings: usesRatings(user),
+    today: today(),
+  });
 });
 
 on("POST", "auth/recovery", async ({ request }) => {
@@ -119,7 +130,7 @@ on("POST", "auth/logout", async ({ request }) => {
 
 on("GET", "users/:handle", async ({ params }) => {
   const user = await userOrThrow(params[0]);
-  return json({ handle: user.handle, name: user.name, counts: await countByKindAndStatus(user.id) });
+  return json({ handle: user.handle, name: user.name, ratings: usesRatings(user), counts: await countByKindAndStatus(user.id) });
 });
 
 on("GET", "users/:handle/marks", async ({ params, url }) => {
@@ -252,6 +263,14 @@ on("PATCH", "profile", async ({ request }) => {
   const result = await saveProfile(viewer.id, fields(await body(request)));
   if ("error" in result) throw new ApiError(400, result.error);
   return json(result.saved);
+});
+
+on("PATCH", "preferences", async ({ request }) => {
+  const viewer = await viewerOrThrow(request);
+  const { ratings } = await body(request);
+  if (typeof ratings !== "boolean") throw new ApiError(400, "ratings 要是 true 或 false");
+  await saveRatings(viewer.id, ratings);
+  return json({ ratings });
 });
 
 on("DELETE", "passkeys/:id", async ({ request, params }) => {

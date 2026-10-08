@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Profile, passkeys, devices, recovery codes and invites, as on the web's settings page.
+/// Profile, ratings, passkeys, devices, recovery codes and invites, as on the web's settings page.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var settings: AccountSettings?
@@ -19,6 +19,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             profileSection
+            ratingsSection
             if let settings {
                 passkeySection(settings)
                 sessionSection(settings)
@@ -71,6 +72,28 @@ struct SettingsView: View {
             Text("个人资料")
         } footer: {
             Text("主页地址是 \(model.api.server.host() ?? "")/@\(model.me?.handle ?? "")，改用户名后旧地址会失效。")
+        }
+    }
+
+    private var ratingsSection: some View {
+        Section {
+            Toggle("使用星级评分", isOn: Binding(
+                get: { model.me?.usesRatings ?? true },
+                set: { on in Task { await saveRatings(on) } }
+            ))
+            .disabled(busy || model.me == nil)
+        } header: {
+            Text("评分")
+        } footer: {
+            Text("关掉后，你的页面和标记表单都不再显示星级；已有的评分会保留。")
+        }
+    }
+
+    private func saveRatings(_ on: Bool) async {
+        await perform {
+            try await model.api.api("PATCH", "preferences", body: ["ratings": on])
+            await model.loadMe()
+            model.marksVersion += 1
         }
     }
 

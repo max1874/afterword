@@ -8,10 +8,13 @@ export function MarkForm({
   kind,
   initial,
   today,
+  ratings = true,
 }: {
   kind: Kind;
   initial: { status?: Status | null; rating?: number | null; comment?: string | null; marked_on?: string | null };
   today: string;
+  /** Off when the person turned ratings off; the saved rating then rides along unchanged. */
+  ratings?: boolean;
 }) {
   const [status, setStatus] = useState<Status>(initial.status ?? "done");
   const [rating, setRating] = useState<number | null>(initial.rating ?? null);
@@ -41,7 +44,11 @@ export function MarkForm({
         ))}
       </fieldset>
 
-      {status !== "wish" ? <StarInput value={rating} onChange={setRating} /> : null}
+      {!ratings ? (
+        <input type="hidden" name="rating" value={initial.rating ?? ""} />
+      ) : status !== "wish" ? (
+        <StarInput value={rating} onChange={setRating} />
+      ) : null}
 
       <label className="block">
         <span className="mb-1.5 block text-sm text-muted">日期</span>

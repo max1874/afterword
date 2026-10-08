@@ -9,13 +9,16 @@ import {
   deleteOtherSessions,
   deletePasskey,
   deleteSession,
+  getUser,
   listInvites,
   listPasskeys,
   listSessions,
   recoveryCodeStatements,
   revokeInvite,
   saveProfile,
+  saveRatings,
   unusedRecoveryCodes,
+  usesRatings,
 } from "~/lib/accounts.server";
 import { passkeyMessage, registerPasskey, signal, userHandle } from "~/lib/passkey";
 import { requireViewer } from "~/lib/session.server";
@@ -26,7 +29,8 @@ export function meta() {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const viewer = await requireViewer(request);
-  const [passkeys, sessions, recoveryLeft, invites] = await Promise.all([
+  const [user, passkeys, sessions, recoveryLeft, invites] = await Promise.all([
+    getUser(viewer.id),
     listPasskeys(viewer.id),
     listSessions(viewer.id),
     unusedRecoveryCodes(viewer.id),
@@ -34,6 +38,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   ]);
   return {
     me: { id: viewer.id, handle: viewer.handle, name: viewer.name },
+    ratings: usesRatings(user),
     passkeys,
     sessions: sessions.map((s) => ({ ...s, current: s.id === viewer.session_id })),
     recoveryLeft,
@@ -48,6 +53,9 @@ export async function action({ request }: Route.ActionArgs) {
   const field = (name: string) => String(form.get(name) ?? "");
 
   switch (field("intent")) {
+    case "ratings":
+      await saveRatings(viewer.id, field("ratings") === "on");
+      return { intent: "ratings" };
     case "profile": {
       const result = await saveProfile(viewer.id, form);
       if ("error" in result) return data({ intent: "profile", error: result.error }, { status: 400 });
@@ -95,6 +103,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
         </p>
       ) : null}
       <Profile me={loaderData.me} />
+      <Ratings on={loaderData.ratings} />
       <Passkeys data={loaderData} />
       <Sessions sessions={loaderData.sessions} />
       <Recovery left={loaderData.recoveryLeft} handle={loaderData.me.handle} />
@@ -113,6 +122,34 @@ function Section({ title, note, children }: { title: string; note?: string; chil
       {note ? <p className="mt-1 text-sm text-muted">{note}</p> : null}
       <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+/** Star ratings on or off; off hides them from your pages and forms and keeps the ones saved. */
+function Ratings({ on }: { on: boolean }) {
+  const fetcher = useFetcher();
+  const shown = fetcher.formData ? fetcher.formData.get("ratings") === "on" : on;
+  return (
+    <Section title="评分" note="关掉后，你的页面和标记表单都不再显示星级；已有的评分会保留。">
+      <fetcher.Form method="post" className="flex items-center justify-between rounded-2xl bg-card px-5 py-4">
+        <input type="hidden" name="intent" value="ratings" />
+        <label htmlFor="ratings" className="font-medium">
+          使用星级评分
+        </label>
+        <button
+          id="ratings"
+          name="ratings"
+          value={shown ? "off" : "on"}
+          role="switch"
+          aria-checked={shown}
+          className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition ${shown ? "bg-[#34c759]" : "bg-line"}`}
+        >
+          <span
+            className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow transition-all ${shown ? "left-[22px]" : "left-[2px]"}`}
+          />
+        </button>
+      </fetcher.Form>
+    </Section>
   );
 }
 
