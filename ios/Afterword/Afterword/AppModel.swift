@@ -111,6 +111,16 @@ final class AppModel {
 
     func signOut() async {
         try? await api.api("POST", "auth/logout")
+        forgetAccount()
+    }
+
+    /// Deletes the account on the server, which ends every session, then forgets it here.
+    func deleteAccount(confirming handle: String) async throws {
+        try await api.api("DELETE", "account", body: ["handle": handle])
+        forgetAccount()
+    }
+
+    private func forgetAccount() {
         api.setToken(nil)
         me = nil
         knownItems = [:]

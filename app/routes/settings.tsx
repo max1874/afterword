@@ -7,6 +7,7 @@ import { RecoveryCodes } from "~/components/recovery-codes";
 import {
   avatarSrc,
   createInvite,
+  deleteAccount,
   deleteOtherSessions,
   deletePasskey,
   deleteSession,
@@ -24,7 +25,7 @@ import {
   usesRatings,
 } from "~/lib/accounts.server";
 import { passkeyMessage, registerPasskey, signal, userHandle } from "~/lib/passkey";
-import { requireViewer } from "~/lib/session.server";
+import { logOut, requireViewer } from "~/lib/session.server";
 
 export function meta() {
   return [{ title: "设置 · 后记" }];
@@ -83,6 +84,13 @@ export async function action({ request }: Route.ActionArgs) {
     case "delete-session":
       await deleteSession(viewer.id, field("id"));
       return { intent: "sessions" };
+    case "delete-account": {
+      if (field("handle").replace(/^@/, "").toLowerCase() !== viewer.handle) {
+        return data({ intent: "delete-account", error: "输入你的用户名以确认删除" }, { status: 400 });
+      }
+      await deleteAccount(viewer);
+      return logOut(request);
+    }
     case "delete-other-sessions":
       await deleteOtherSessions(viewer.id, viewer.session_id);
       return { intent: "sessions" };
@@ -121,6 +129,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
       <Sessions sessions={loaderData.sessions} />
       <Recovery left={loaderData.recoveryLeft} handle={loaderData.me.handle} />
       {loaderData.invites ? <Invites invites={loaderData.invites} origin={loaderData.origin} /> : null}
+      <DeleteAccount handle={loaderData.me.handle} />
       <Form method="post" action="/logout" className="border-t border-line pt-6">
         <button className="text-sm text-muted hover:text-danger">退出登录</button>
       </Form>
@@ -446,6 +455,27 @@ function Invites({ invites, origin }: { invites: NonNullable<Data["invites"]>; o
           })}
         </ul>
       ) : null}
+    </Section>
+  );
+}
+
+/** 删除账号: typing the handle again is the confirmation, since nothing can bring it back. */
+function DeleteAccount({ handle }: { handle: string }) {
+  const fetcher = useFetcher<typeof action>();
+  const result = fetcher.data?.intent === "delete-account" ? fetcher.data : null;
+  return (
+    <Section title="删除账号" note="你的标记、短评、评分、头像、通行密钥和登录的设备都会删除，不能恢复。你添加过的作品条目会留在作品库里，不再带你的名字。">
+      <fetcher.Form method="post" className="flex flex-wrap items-center gap-3">
+        <input type="hidden" name="intent" value="delete-account" />
+        <input name="handle" placeholder={`输入 ${handle} 确认`} autoComplete="off" required className="w-56" />
+        <button
+          disabled={fetcher.state !== "idle"}
+          className="rounded-full border border-danger px-5 py-1.5 text-sm text-danger transition hover:bg-danger hover:text-paper"
+        >
+          永久删除账号
+        </button>
+        {result && "error" in result ? <span className="text-sm text-danger">{result.error}</span> : null}
+      </fetcher.Form>
     </Section>
   );
 }

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 
 import {
   createInvite,
+  deleteAccount,
   deleteOtherSessions,
   deletePasskey,
   deleteSession,
@@ -357,6 +358,17 @@ on("DELETE", "passkeys/:id", async ({ request, params }) => {
 on("DELETE", "sessions/:id", async ({ request, params }) => {
   const viewer = await viewerOrThrow(request);
   await deleteSession(viewer.id, params[0]);
+  return json({ ok: true });
+});
+
+// 删除账号: the handle typed again as confirmation, as on the web.
+on("DELETE", "account", async ({ request }) => {
+  const viewer = await viewerOrThrow(request);
+  const body = (await request.json().catch(() => ({}))) as { handle?: unknown };
+  if (String(body.handle ?? "").replace(/^@/, "").toLowerCase() !== viewer.handle) {
+    throw new ApiError(400, "输入你的用户名以确认删除");
+  }
+  await deleteAccount(viewer);
   return json({ ok: true });
 });
 

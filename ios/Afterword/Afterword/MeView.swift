@@ -9,6 +9,10 @@ struct MeView: View {
     @State private var showImport = false
     @State private var confirmSignOut = false
     @State private var error: String?
+    #if DEBUG
+    /// Opens 账号与安全 on launch (`-AfterwordSheet account`), for simulator runs that cannot tap.
+    @State private var showAccount = false
+    #endif
 
     var body: some View {
         List {
@@ -61,6 +65,15 @@ struct MeView: View {
         .navigationTitle("我的")
         .refreshable { await load() }
         .task(id: "\(model.me?.handle ?? "")|\(model.marksVersion)") { await load() }
+        #if DEBUG
+        .navigationDestination(isPresented: $showAccount) { AccountView() }
+        .onAppear {
+            if model.debugSheet == "account" {
+                model.debugSheet = nil
+                showAccount = true
+            }
+        }
+        #endif
         .sheet(isPresented: $showImport) {
             NavigationStack { ImportView() }
         }
@@ -357,6 +370,9 @@ struct AccountView: View {
     @State private var busy = false
     @State private var confirm: Confirm?
 
+    @State private var deleting = false
+    @State private var deleteHandle = ""
+
     enum Confirm: Identifiable {
         case regenerate, signOutOthers
         var id: Self { self }
@@ -369,9 +385,28 @@ struct AccountView: View {
                 sessionSection(settings)
                 recoverySection(settings)
             }
+            Section {
+                Button("删除账号", role: .destructive) {
+                    deleteHandle = ""
+                    deleting = true
+                }
+            } footer: {
+                Text("你的标记、短评、评分、头像、通行密钥和登录的设备都会删除，不能恢复。")
+            }
             if let error {
                 Text(error).foregroundStyle(Color.danger)
             }
+        }
+        .alert("删除账号", isPresented: $deleting) {
+            TextField(model.me?.handle ?? "", text: $deleteHandle)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("取消", role: .cancel) {}
+            Button("永久删除", role: .destructive) {
+                Task { await perform { try await model.deleteAccount(confirming: deleteHandle) } }
+            }
+        } message: {
+            Text("所有标记和账号信息都会删除，不能恢复。输入你的用户名 \(model.me?.handle ?? "") 确认。")
         }
         .navigationTitle("账号与安全")
         .navigationBarTitleDisplayMode(.inline)

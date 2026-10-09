@@ -338,3 +338,24 @@ export async function deleteSession(userId: string, id: string) {
 export async function deleteOtherSessions(userId: string, keepId: string) {
   await env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND id != ?").bind(userId, keepId).run();
 }
+
+// Deleting an account
+
+/**
+ * Deletes the person and everything that is theirs: marks, passkeys, sessions (so every
+ * device is signed out at once), recovery codes, invites and the avatar. Works they added
+ * stay in the shared catalogue without their name, like the covers stored for them.
+ */
+export async function deleteAccount(user: Pick<User, "id" | "avatar_key">) {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM marks WHERE user_id = ?").bind(user.id),
+    env.DB.prepare("DELETE FROM passkeys WHERE user_id = ?").bind(user.id),
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+    env.DB.prepare("DELETE FROM recovery_codes WHERE user_id = ?").bind(user.id),
+    env.DB.prepare("DELETE FROM invites WHERE created_by = ?").bind(user.id),
+    env.DB.prepare("UPDATE invites SET used_by = NULL WHERE used_by = ?").bind(user.id),
+    env.DB.prepare("UPDATE items SET created_by = NULL WHERE created_by = ?").bind(user.id),
+    env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
+  ]);
+  if (user.avatar_key) await env.COVERS.delete(user.avatar_key);
+}
