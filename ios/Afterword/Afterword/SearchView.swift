@@ -97,17 +97,12 @@ struct SearchView: View {
         .padding(.bottom, 8)
     }
 
+    /// Only the hint: 手动添加 waits until a search finds nothing.
     private var start: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("搜你标记过的作品，或者从豆瓣、TMDB、Bangumi、Steam 找新的来标记。")
-                .font(.subheadline)
-                .foregroundStyle(Color.muted)
-            Button { showManual = true } label: {
-                Label("手动添加一部作品", systemImage: "square.and.pencil").font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 12)
+        Text("搜你标记过的作品，或者从豆瓣、TMDB、Bangumi、Steam 找新的来标记。")
+            .font(.subheadline)
+            .foregroundStyle(Color.muted)
+            .padding(.vertical, 12)
         .listRowSeparator(.hidden)
     }
 
@@ -148,7 +143,8 @@ struct SearchView: View {
                     .listRowSeparator(.hidden)
             } else if let searched, searched.text == text, searched.kind == kind {
                 ForEach(groups.flatMap(\.items)) { candidate in row(candidate) }
-                if groups.allSatisfy(\.items.isEmpty) {
+                let none = groups.allSatisfy(\.items.isEmpty)
+                if none {
                     Text("没有找到“\(text)”。试试原名，或者手动添加。")
                         .font(.footnote)
                         .foregroundStyle(Color.muted)
@@ -161,11 +157,13 @@ struct SearchView: View {
                         .foregroundStyle(Color.muted)
                         .listRowSeparator(.hidden)
                 }
-                Button { showManual = true } label: {
-                    Label("手动添加", systemImage: "square.and.pencil").font(.subheadline.weight(.semibold))
+                if none {
+                    Button { showManual = true } label: {
+                        Label("手动添加", systemImage: "square.and.pencil").font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .listRowSeparator(.hidden)
                 }
-                .buttonStyle(.plain)
-                .listRowSeparator(.hidden)
             } else {
                 Button { Task { await search() } } label: {
                     Label("在\(kind.label)里找“\(text)”", systemImage: "magnifyingglass")
