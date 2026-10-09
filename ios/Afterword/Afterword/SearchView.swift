@@ -32,9 +32,8 @@ struct SearchView: View {
                 .padding(.bottom, 10)
             field
             List {
-                if text.isEmpty {
-                    start
-                } else {
+                // Empty until you type: the field says what to type.
+                if !text.isEmpty {
                     if !mine.isEmpty { mineSection }
                     addSection
                 }
@@ -95,15 +94,6 @@ struct SearchView: View {
         .background(Capsule().fill(Color.card))
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
-    }
-
-    /// Only the hint: 手动添加 waits until a search finds nothing.
-    private var start: some View {
-        Text("搜你标记过的作品，或者从豆瓣、TMDB、Bangumi、Steam 找新的来标记。")
-            .font(.subheadline)
-            .foregroundStyle(Color.muted)
-            .padding(.vertical, 12)
-        .listRowSeparator(.hidden)
     }
 
     private var mineSection: some View {
