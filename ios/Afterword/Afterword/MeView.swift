@@ -91,36 +91,41 @@ struct MeView: View {
     }
 }
 
-/// The avatar, name and handle, then how many works of each kind are done; each number opens them in the library.
+/// The avatar, name and handle with 编辑资料, then how many works of each kind are done;
+/// each number opens them in the library. Like Instagram's or 小红书's profile header, the
+/// avatar carries no badge: editing has its own button, and tapping the avatar is a shortcut.
 private struct MeHeader: View {
     @Environment(AppModel.self) private var model
     let me: Me
     let profile: Profile?
     @Binding var error: String?
 
-    @State private var photo: PhotosPickerItem?
+    @State private var editing = false
+    @State private var avatarMenu = false
     @State private var uploading = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
-                PhotosPicker(selection: $photo, matching: .images) {
-                    Avatar(name: me.name, path: me.avatar, size: 60)
-                        .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: uploading ? "arrow.up.circle.fill" : "camera.circle.fill")
-                                .font(.system(size: 20))
-                                .symbolRenderingMode(.palette)
-                                .foregroundStyle(Color.paper, Color.muted)
-                                .background(Circle().fill(Color.paper).padding(2))
-                        }
+                Button { avatarMenu = true } label: {
+                    Avatar(name: me.name, path: me.avatar, size: 64)
+                        .overlay { if uploading { Circle().fill(.black.opacity(0.35)).overlay(ProgressView().tint(.white)) } }
                 }
                 .buttonStyle(.plain)
                 .disabled(uploading)
                 .accessibilityLabel("更换头像")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(me.name).font(.title2.bold())
+                    Text(me.name).font(.title2.bold()).lineLimit(1)
                     Text("@\(me.handle)").font(.subheadline).foregroundStyle(Color.muted)
                 }
+                Spacer(minLength: 8)
+                Button("编辑资料") { editing = true }
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    // The colour of the list's rows: Color.card is the grey of the page behind them.
+                    .background(Capsule().fill(Color(uiColor: .secondarySystemGroupedBackground)))
+                    .buttonStyle(.plain)
             }
             HStack(spacing: 0) {
                 ForEach(Kind.allCases) { kind in
@@ -144,12 +149,135 @@ private struct MeHeader: View {
                 }
             }
             .padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.card))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .secondarySystemGroupedBackground)))
         }
-        .onChange(of: photo) { _, item in
-            guard let item else { return }
-            Task { await upload(item) }
+        .avatarMenu(isPresented: $avatarMenu, uploading: $uploading, error: $error)
+        .sheet(isPresented: $editing) { NavigationStack { EditProfileView() } }
+        #if DEBUG
+        .onAppear {
+            if model.debugSheet == "editProfile" {
+                model.debugSheet = nil
+                editing = true
+            }
         }
+        #endif
+    }
+}
+
+/// 编辑资料: the photo large with 更换头像 under it, then name and handle, like the edit
+/// pages of Instagram and Apple's own contact card.
+struct EditProfileView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var handle = ""
+    @State private var avatarMenu = false
+    @State private var uploading = false
+    @State private var saving = false
+    @State private var error: String?
+
+    private var changed: Bool { name != model.me?.name || handle != model.me?.handle }
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(spacing: 10) {
+                    Button { avatarMenu = true } label: {
+                        Avatar(name: model.me?.name ?? name, path: model.me?.avatar, size: 96)
+                            .overlay { if uploading { Circle().fill(.black.opacity(0.35)).overlay(ProgressView().tint(.white)) } }
+                    }
+                    .buttonStyle(.plain)
+                    Button(model.me?.avatar == nil ? "添加头像" : "更换头像") { avatarMenu = true }
+                        .font(.subheadline.weight(.medium))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.ink)
+                }
+                .disabled(uploading)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
+            .listRowBackground(Color.clear)
+
+            Section {
+                LabeledContent("名字") {
+                    TextField("名字", text: $name).multilineTextAlignment(.trailing)
+                }
+                LabeledContent("用户名") {
+                    TextField("用户名", text: $handle)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+            } footer: {
+                Text("主页地址是 \(model.api.server.host() ?? "")/@\(model.me?.handle ?? "")，改用户名后旧地址会失效。")
+            }
+
+            if let error {
+                Text(error).foregroundStyle(Color.danger)
+            }
+        }
+        .navigationTitle("编辑资料")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("保存") { Task { await save() } }.disabled(saving || !changed || name.isEmpty || handle.isEmpty)
+            }
+        }
+        .avatarMenu(isPresented: $avatarMenu, uploading: $uploading, error: $error)
+        .onAppear {
+            if let me = model.me, name.isEmpty, handle.isEmpty {
+                name = me.name
+                handle = me.handle
+            }
+        }
+    }
+
+    private func save() async {
+        saving = true
+        error = nil
+        defer { saving = false }
+        do {
+            let _: SavedProfile = try await model.api.api("PATCH", "profile", body: ["name": name, "handle": handle])
+            await model.loadMe()
+            model.homePath = []
+            model.libraryPath = []
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+extension View {
+    /// 从相册选择 / 移除头像, and the upload once a photo is picked.
+    func avatarMenu(isPresented: Binding<Bool>, uploading: Binding<Bool>, error: Binding<String?>) -> some View {
+        modifier(AvatarMenu(isPresented: isPresented, uploading: uploading, error: error))
+    }
+}
+
+private struct AvatarMenu: ViewModifier {
+    @Environment(AppModel.self) private var model
+    @Binding var isPresented: Bool
+    @Binding var uploading: Bool
+    @Binding var error: String?
+
+    @State private var picking = false
+    @State private var photo: PhotosPickerItem?
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog("头像", isPresented: $isPresented) {
+                Button("从相册选择") { picking = true }
+                if model.me?.avatar != nil {
+                    Button("移除头像", role: .destructive) { Task { await remove() } }
+                }
+            }
+            .photosPicker(isPresented: $picking, selection: $photo, matching: .images)
+            .onChange(of: photo) { _, item in
+                guard let item else { return }
+                Task { await upload(item) }
+            }
     }
 
     /// A square crop of the photo, 512px, as JPEG: small enough to load at once everywhere.
@@ -173,6 +301,18 @@ private struct MeHeader: View {
             }
             guard let jpeg = square.jpegData(compressionQuality: 0.85) else { throw APIError(status: 0, message: "照片转换失败") }
             try await model.api.upload("PUT", "avatar", data: jpeg, contentType: "image/jpeg")
+            await model.loadMe()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func remove() async {
+        uploading = true
+        error = nil
+        defer { uploading = false }
+        do {
+            try await model.api.api("DELETE", "avatar")
             await model.loadMe()
         } catch {
             self.error = error.localizedDescription
@@ -207,13 +347,10 @@ struct Avatar: View {
     }
 }
 
-/// 账号与安全: name and handle, passkeys, signed-in devices and recovery codes.
+/// 账号与安全: passkeys, signed-in devices and recovery codes. Name, handle and photo are in 编辑资料.
 struct AccountView: View {
     @Environment(AppModel.self) private var model
     @State private var settings: AccountSettings?
-    @State private var name = ""
-    @State private var handle = ""
-    @State private var profileMessage: String?
     @State private var error: String?
     @State private var busy = false
     @State private var confirm: Confirm?
@@ -225,7 +362,6 @@ struct AccountView: View {
 
     var body: some View {
         Form {
-            profileSection
             if let settings {
                 passkeySection(settings)
                 sessionSection(settings)
@@ -252,37 +388,6 @@ struct AccountView: View {
         case .regenerate: "旧的恢复码会全部失效。"
         case .signOutOthers: "除了这台设备，其他设备都会退出登录。"
         case nil: ""
-        }
-    }
-
-    private var profileSection: some View {
-        Section {
-            LabeledContent("名字") {
-                TextField("名字", text: $name).multilineTextAlignment(.trailing)
-            }
-            LabeledContent("用户名") {
-                TextField("用户名", text: $handle)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            }
-            Button("保存") { Task { await saveProfile() } }
-                .disabled(busy || (name == model.me?.name && handle == model.me?.handle))
-            if let profileMessage { Text(profileMessage).font(.footnote).foregroundStyle(Color.muted) }
-            if model.me?.avatar != nil {
-                Button("移除头像", role: .destructive) {
-                    Task {
-                        await perform {
-                            try await model.api.api("DELETE", "avatar")
-                            await model.loadMe()
-                        }
-                    }
-                }
-            }
-        } header: {
-            Text("个人资料")
-        } footer: {
-            Text("主页地址是 \(model.api.server.host() ?? "")/@\(model.me?.handle ?? "")，改用户名后旧地址会失效。")
         }
     }
 
@@ -357,10 +462,6 @@ struct AccountView: View {
     }
 
     private func load() async {
-        if let me = model.me, name.isEmpty, handle.isEmpty {
-            name = me.name
-            handle = me.handle
-        }
         if settings == nil { settings = model.api.cached("settings") }
         do {
             settings = try await model.api.api("GET", "settings")
@@ -379,18 +480,6 @@ struct AccountView: View {
             await load()
         } catch {
             self.error = error.localizedDescription
-        }
-    }
-
-    private func saveProfile() async {
-        await perform {
-            let saved: SavedProfile = try await model.api.api("PATCH", "profile", body: ["name": name, "handle": handle])
-            name = saved.name
-            handle = saved.handle
-            await model.loadMe()
-            model.homePath = []
-            model.libraryPath = []
-            profileMessage = "已保存"
         }
     }
 
