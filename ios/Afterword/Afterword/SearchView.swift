@@ -45,7 +45,13 @@ struct SearchView: View {
         .navigationTitle("搜索")
         .toolbarVisibility(.hidden, for: .navigationBar)
         // Opening the tab, or ＋ on the home page, is for typing straight away.
-        .onAppear { if query.isEmpty { focused = true } }
+        .onAppear {
+            #if DEBUG
+            // A preset search (for screenshots) shows its results, not the keyboard.
+            if model.debugSearch != nil { return }
+            #endif
+            if query.isEmpty { focused = true }
+        }
         .onChange(of: model.tab) { _, tab in if tab == .search, query.isEmpty { focused = true } }
         .onChange(of: kind) { if searched != nil { Task { await search() } } }
         // Your own marks follow the typing; the sources are asked on 搜索, since they take seconds.
