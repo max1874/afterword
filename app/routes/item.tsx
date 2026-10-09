@@ -53,7 +53,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (viewer?.id !== user.id) throw data(null, { status: 403 });
   const form = await request.formData();
 
-  // 设为磁贴封面: shows this work on one of your kind tiles, or goes back to the newest mark.
+  // 设为磁贴首图: puts this work's cover first on one of your kind tiles, or takes it off again.
   if (form.get("intent") === "tile") {
     const key = form.get("key");
     const item = await getItem(params.id, user.id);
@@ -184,7 +184,7 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
                       <input type="hidden" name="key" value={key} />
                       {on ? null : <input type="hidden" name="set" value="1" />}
                       <button className="underline decoration-line underline-offset-4 hover:decoration-ink">
-                        {on ? "恢复" : "设为"}「{key === "all" ? "全部" : kindLabel(key)}」磁贴{on ? "默认图" : "封面"}
+                        {on ? "取消" : "设为"}「{key === "all" ? "全部" : kindLabel(key)}」磁贴首图
                       </button>
                     </Form>
                   );

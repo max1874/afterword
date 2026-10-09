@@ -129,8 +129,8 @@ nonisolated struct Shelves: Decodable {
     let doing: [MarkedItem]
     let done: [MarkedItem]
     let wish: [MarkedItem]
-    /// The picture on each kind tile, keyed by kind and "all"; older servers omit it.
-    let kindTiles: [String: KindTile?]?
+    /// Cover paths side by side on each kind tile, keyed by kind and "all"; older servers omit it.
+    let tiles: [String: [String]]?
 
     subscript(status: Status) -> [MarkedItem] {
         switch status {
@@ -139,15 +139,6 @@ nonisolated struct Shelves: Decodable {
         case .wish: wish
         }
     }
-}
-
-/// A kind tile's picture: by default the newest mark's cover washed into its colours,
-/// or a work the person chose for the tile, shown as is.
-nonisolated struct KindTile: Decodable, Hashable {
-    let src: String
-    let wash: Bool
-    let item: String
-    let custom: Bool
 }
 
 nonisolated struct ItemResponse: Decodable {

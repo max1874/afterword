@@ -240,11 +240,11 @@ struct ItemView: View {
                 Button(item.status == nil ? "标记" : "修改标记", systemImage: "pencil") { editing = true }
             }
             if mine {
-                // Your own home's kind tiles: this work's kind, and 全部.
+                // Puts this work's cover first on your home's kind tiles: its kind's, and 全部.
                 ForEach([item.kind.rawValue, "all"], id: \.self) { key in
                     let label = Kind(rawValue: key)?.label ?? "全部"
                     let on = model.me?.tiles?[key] == item.id
-                    Button(on ? "恢复「\(label)」磁贴默认图" : "设为「\(label)」磁贴封面", systemImage: "square.grid.2x2") {
+                    Button(on ? "取消「\(label)」磁贴首图" : "设为「\(label)」磁贴首图", systemImage: "rectangle.split.3x1") {
                         Task { await setTile(key, on ? nil : item.id) }
                     }
                 }

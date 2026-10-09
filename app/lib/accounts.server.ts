@@ -34,7 +34,7 @@ export function chosenTiles(user: Pick<User, "tiles"> | null | undefined): Parti
   }
 }
 
-/** Shows `itemId` on one of this person's kind tiles, or with null goes back to the newest mark. */
+/** Puts `itemId` first on one of this person's kind tiles, or with null leaves the tile to the newest marks. */
 export async function saveTile(user: Pick<User, "id" | "tiles">, key: TileKey, itemId: string | null) {
   const tiles = { ...chosenTiles(user), [key]: itemId ?? undefined };
   await env.DB.prepare("UPDATE users SET tiles = ? WHERE id = ?").bind(JSON.stringify(tiles), user.id).run();

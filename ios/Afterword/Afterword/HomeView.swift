@@ -97,11 +97,20 @@ struct HomeView: View {
         .padding(.top, 26)
     }
 
-    /// Tiles into the library by kind, with the name on the picture.
+    /// Tiles into the library by kind: the newest three covers whole, side by side, like Emby's
+    /// collection mosaics. The tile is exactly three covers wide, so none is cropped.
     @ViewBuilder private var kindTiles: some View {
         ForEach([Kind?.none] + Kind.allCases.map { Optional($0) }, id: \.self) { kind in
             NavigationLink(value: Route.library(handle: handle, kind: kind, status: nil)) {
-                KindTileView(tile: shelves?.kindTiles?[kind?.rawValue ?? "all"].flatMap { $0 }, label: kind?.label ?? "全部")
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 1) {
+                        ForEach(shelves?.tiles?[kind?.rawValue ?? "all"] ?? [], id: \.self) { path in TileCover(path: path) }
+                    }
+                    .frame(width: 150, height: 75)
+                    .background(Color.card)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Text(kind?.label ?? "全部").font(.footnote.weight(.medium))
+                }
             }
             .buttonStyle(.plain)
         }
@@ -237,46 +246,24 @@ extension Status {
     static let shelfOrder: [Status] = [.doing, .done, .wish]
 }
 
-/**
- A kind tile: by default the newest mark's cover washed into its colours, so the row stays
- calm; a work chosen for the tile (from its item page's ⋯ menu) shows its artwork as is.
- */
-private struct KindTileView: View {
+/// One cover on a kind tile, whole: three covers fill the tile exactly.
+private struct TileCover: View {
     @Environment(AppModel.self) private var model
-    let tile: KindTile?
-    let label: String
+    let path: String
 
     @State private var image: UIImage?
 
-    init(tile: KindTile?, label: String) {
-        self.tile = tile
-        self.label = label
-        _image = State(initialValue: tile.flatMap { CoverCache.shared.object(forKey: $0.src as NSString) })
+    init(path: String) {
+        self.path = path
+        _image = State(initialValue: CoverCache.shared.object(forKey: path as NSString))
     }
 
     var body: some View {
         Color.card
-            .frame(width: 136, height: 84)
             .overlay {
-                if let image, let tile {
-                    if tile.wash {
-                        Image(uiImage: image).resizable().scaledToFill().scaleEffect(1.6).blur(radius: 18).saturation(1.4)
-                    } else {
-                        Image(uiImage: image).resizable().scaledToFill()
-                    }
-                }
+                if let image { Image(uiImage: image).resizable().scaledToFill() }
             }
-            .overlay {
-                if tile != nil { LinearGradient(colors: [.clear, .black.opacity(0.4)], startPoint: .center, endPoint: .bottom) }
-            }
-            .overlay(alignment: .bottomLeading) {
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(tile == nil ? Color.ink : .white)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 9)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .task(id: tile?.src) { image = await CoverImage.image(for: tile?.src, api: model.api, maxPixels: 600) }
+            .clipped()
+            .task(id: path) { image = await CoverImage.image(for: path, api: model.api) }
     }
 }

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-import { backdropSrc, coverSrc } from "./format";
+import { coverSrc } from "./format";
 import type { Kind, Status } from "./kinds";
 
 export type Item = {
@@ -127,48 +127,47 @@ export async function listShelves(filter: Omit<MarkFilter, "status">) {
 /** Where a home page's kind tiles lead: each kind, and every kind under "all". */
 export type TileKey = Kind | "all";
 
-/**
- * The picture on a kind tile. By default it is the cover of the newest mark, washed into
- * its colours (`wash`); a work the person chose for the tile shows its artwork or cover as is.
- */
-export type Tile = { src: string; wash: boolean; item: string; custom: boolean } | null;
+/** Covers side by side on each kind tile of a home page. */
+const TILE_COVERS = 3;
 
-/** The kind tiles of a home page, from the person's chosen works (`users.tiles`) or their newest marks. */
-export async function kindTiles(userId: string, chosen: Partial<Record<TileKey, string>>) {
+/**
+ * The covers on a home page's kind tiles: the newest three of each kind, with a work the
+ * person chose for the tile (from its item page) first. "all" takes the newest of each
+ * kind before a second of any, so it does not repeat the 影视 tile.
+ */
+export async function tileCovers(userId: string, chosen: Partial<Record<TileKey, string>>) {
   const ids = Object.values(chosen).filter((id): id is string => Boolean(id));
+  type Row = { id: string; kind: Kind; cover_key: string | null; cover_url: string | null; n: number };
   const [{ results: latest }, { results: picked }] = await Promise.all([
     env.DB.prepare(
-      `SELECT * FROM (
+      `SELECT id, kind, cover_key, cover_url, n FROM (
          SELECT i.id, i.kind, i.cover_key, i.cover_url, m.marked_on, m.marked_at,
                 ROW_NUMBER() OVER (PARTITION BY i.kind ORDER BY m.marked_on DESC, m.marked_at DESC) AS n
          FROM marks m JOIN items i ON i.id = m.item_id
          WHERE m.user_id = ? AND (i.cover_key IS NOT NULL OR i.cover_url IS NOT NULL)
        )
-       WHERE n = 1
-       ORDER BY marked_on DESC, marked_at DESC`,
+       WHERE n <= ?
+       ORDER BY n, marked_on DESC, marked_at DESC`,
     )
-      .bind(userId)
-      .all<{ id: string; kind: Kind; cover_key: string | null; cover_url: string | null }>(),
+      .bind(userId, TILE_COVERS)
+      .all<Row>(),
     ids.length
-      ? env.DB.prepare(
-          `SELECT id, cover_key, cover_url, backdrop_key, backdrop_url FROM items WHERE id IN (${ids.map(() => "?").join(", ")})`,
-        )
+      ? env.DB.prepare(`SELECT id, kind, cover_key, cover_url FROM items WHERE id IN (${ids.map(() => "?").join(", ")})`)
           .bind(...ids)
-          .all<{ id: string; cover_key: string | null; cover_url: string | null; backdrop_key: string | null; backdrop_url: string | null }>()
-      : Promise.resolve({ results: [] }),
+          .all<Omit<Row, "n">>()
+      : Promise.resolve({ results: [] as Omit<Row, "n">[] }),
   ]);
-  const tiles = {} as Record<TileKey, Tile>;
+  const tiles = {} as Record<TileKey, string[]>;
   for (const key of ["all", "screen", "book", "comic", "game"] as const) {
     const own = picked.find((item) => item.id === chosen[key]);
-    const ownSrc = own && (backdropSrc(own) ?? coverSrc(own));
-    // The newest mark overall is the newest of its own kind.
-    const newest = key === "all" ? latest[0] : latest.find((row) => row.kind === key);
-    const newestSrc = newest && coverSrc(newest);
-    tiles[key] = ownSrc
-      ? { src: ownSrc, wash: false, item: own.id, custom: true }
-      : newestSrc
-        ? { src: newestSrc, wash: true, item: newest.id, custom: false }
-        : null;
+    // Rows come newest-of-each-kind first, so "all" mixes kinds; each kind keeps its own order.
+    const rows = [...(own ? [own] : []), ...(key === "all" ? latest : latest.filter((row) => row.kind === key))];
+    const seen = new Set<string>();
+    tiles[key] = rows
+      .filter((row) => !seen.has(row.id) && seen.add(row.id))
+      .map((row) => coverSrc(row))
+      .filter((src): src is string => Boolean(src))
+      .slice(0, TILE_COVERS);
   }
   return tiles;
 }

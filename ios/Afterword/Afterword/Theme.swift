@@ -49,13 +49,22 @@ struct CoverImage: View {
             .task(id: path) { image = await Self.image(for: path, api: model.api) }
     }
 
-    /// The cover (or landscape artwork) for a path, decoded once and kept in memory.
+    /// The cover (or landscape artwork) for a path, decoded once and kept in memory. A failed
+    /// download is tried twice more, so one dropped request does not leave a title in its place.
     static func image(for path: String?, api: APIClient, maxPixels: Int = 600) async -> UIImage? {
         guard let path, let url = api.url(for: path) else { return nil }
         if let cached = CoverCache.shared.object(forKey: path as NSString) { return cached }
-        guard let data = try? await api.data(from: url), let loaded = await thumbnail(data, maxPixels: maxPixels) else { return nil }
-        CoverCache.shared.setObject(loaded, forKey: path as NSString)
-        return loaded
+        for delay in [0.0, 1.0, 3.0] {
+            if delay > 0 {
+                // Stops when the view goes away.
+                guard (try? await Task.sleep(for: .seconds(delay))) != nil else { return nil }
+            }
+            if let data = try? await api.data(from: url), let loaded = await thumbnail(data, maxPixels: maxPixels) {
+                CoverCache.shared.setObject(loaded, forKey: path as NSString)
+                return loaded
+            }
+        }
+        return nil
     }
 
     /// Decoded and scaled down off the main thread; covers are up to 1024px tall and

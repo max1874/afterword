@@ -31,7 +31,7 @@ import {
   listShelves,
   markedSourceIds,
   saveMark,
-  kindTiles,
+  tileCovers,
   today,
   type Item,
 } from "~/lib/db.server";
@@ -160,16 +160,14 @@ on("GET", "users/:handle/shelves", async ({ params, url }) => {
   const user = await userOrThrow(params[0]);
   const kindParam = url.searchParams.get("kind");
   const kind = isKind(kindParam) ? kindParam : undefined;
-  const [shelves, tiles] = await Promise.all([listShelves({ userId: user.id, kind }), kindTiles(user.id, chosenTiles(user))]);
+  const [shelves, tiles] = await Promise.all([listShelves({ userId: user.id, kind }), tileCovers(user.id, chosenTiles(user))]);
   fillDetails(shelves.doing);
   return json({
     doing: shelves.doing.map(withCover),
     done: shelves.done.map(withCover),
     wish: shelves.wish.map(withCover),
-    // The picture on each kind tile, by kind and under "all".
-    kindTiles: tiles,
-    // Cover paths per tile, for app builds from before `kindTiles`.
-    tiles: Object.fromEntries(Object.entries(tiles).map(([key, tile]) => [key, tile ? [tile.src] : []])),
+    // Cover paths side by side on each kind tile, by kind and under "all".
+    tiles,
   });
 });
 

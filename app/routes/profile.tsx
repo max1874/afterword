@@ -6,7 +6,7 @@ import { PageTitle, profileHref } from "~/components/profile-nav";
 import { WideCard } from "~/components/wide-card";
 import { chosenTiles, profileFromParam } from "~/lib/accounts.server";
 import { fillDetails } from "~/lib/details.server";
-import { countByKindAndStatus, kindTiles, listShelves, type Tile, type TileKey } from "~/lib/db.server";
+import { countByKindAndStatus, listShelves, tileCovers, type TileKey } from "~/lib/db.server";
 import { backdropSrc, coverSrc, joinText, monthDay } from "~/lib/format";
 import { KINDS, kindLabel, statusLabel, total, type Kind, type Status } from "~/lib/kinds";
 import { getViewer } from "~/lib/session.server";
@@ -28,7 +28,7 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
   const [shelves, counts, tiles] = await Promise.all([
     listShelves({ userId: user.id }),
     countByKindAndStatus(user.id),
-    kindTiles(user.id, chosenTiles(user)),
+    tileCovers(user.id, chosenTiles(user)),
   ]);
   fillDetails(shelves.doing);
   const withArt = (items: typeof shelves.done) =>
@@ -121,33 +121,24 @@ function Row({ title, count, to, children }: { title: string; count?: number; to
 }
 
 /**
- * Tiles into the library by kind, with the name on the picture. By default the newest
- * mark's cover washed into its colours, so the row stays calm; a work chosen for the
- * tile (from its item page) shows its artwork as is.
+ * Tiles into the library by kind: the newest three covers whole, side by side (the tile is
+ * exactly three covers wide, so none is cropped), like Emby's collection mosaics; a work
+ * chosen for the tile from its item page comes first.
  */
-function KindTiles({ handle, tiles }: { handle: string; tiles: Record<TileKey, Tile> }) {
+function KindTiles({ handle, tiles }: { handle: string; tiles: Record<TileKey, string[]> }) {
   const keys: [TileKey, string][] = [["all", "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])];
-  return keys.map(([key, label]) => {
-    const tile = tiles[key];
-    return (
-      <li key={key} className="w-[136px] shrink-0 snap-start sm:w-[184px]">
-        <Link to={profileHref(handle, "library", { kind: key === "all" ? undefined : key })} className="group block">
-          <div className="relative h-[84px] overflow-hidden rounded-2xl bg-card shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.25)] transition group-hover:-translate-y-0.5 sm:h-[112px]">
-            {tile ? (
-              <img
-                src={tile.src}
-                alt=""
-                referrerPolicy="no-referrer"
-                className={`absolute inset-0 size-full object-cover ${tile.wash ? "scale-150 blur-2xl saturate-150" : ""}`}
-              />
-            ) : null}
-            {tile ? <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" /> : null}
-            <p className={`absolute bottom-2 left-3 text-[15px] font-semibold sm:bottom-3 sm:text-[17px] ${tile ? "text-white" : ""}`}>{label}</p>
-          </div>
-        </Link>
-      </li>
-    );
-  });
+  return keys.map(([key, label]) => (
+    <li key={key} className="w-[150px] shrink-0 snap-start sm:w-[198px]">
+      <Link to={profileHref(handle, "library", { kind: key === "all" ? undefined : key })} className="group block">
+        <div className="flex aspect-[2/1] gap-px overflow-hidden rounded-xl bg-card shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.25)] transition group-hover:-translate-y-0.5">
+          {tiles[key].map((src) => (
+            <img key={src} src={src} alt="" referrerPolicy="no-referrer" className="h-full min-w-0 flex-1 object-cover" />
+          ))}
+        </div>
+        <p className="mt-1.5 text-[13px] font-medium">{label}</p>
+      </Link>
+    </li>
+  ));
 }
 
 function PosterCard({ item, handle, status }: { item: ShelfItem; handle: string; status: Status }) {
