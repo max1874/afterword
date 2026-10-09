@@ -40,6 +40,10 @@ struct AfterwordApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
+    private static var searchRole: TabRole {
+        if #available(iOS 27.0, *) { .prominent } else { .search }
+    }
+
     var body: some View {
         @Bindable var model = model
         Group {
@@ -61,7 +65,9 @@ struct RootView: View {
                         NavigationStack { MeView() }
                     }
                     // Finds a work among your marks, or anywhere to add it: adding starts with a search.
-                    Tab("搜索", systemImage: "magnifyingglass", value: .search, role: .search) {
+                    // Its own circle beside the bar: iOS 26 gives that to the search role, iOS 27 only
+                    // to the new prominent role and folds a search tab into the bar like any other.
+                    Tab("搜索", systemImage: "magnifyingglass", value: .search, role: Self.searchRole) {
                         NavigationStack(path: $model.searchPath) {
                             SearchView().appRoutes()
                         }

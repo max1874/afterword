@@ -56,6 +56,8 @@ struct MeView: View {
             }
         }
         .foregroundStyle(Color.ink)
+        // A size smaller than Settings-style rows, like other apps' Me tabs; still follows 文字大小.
+        .font(.callout)
         .navigationTitle("我的")
         .refreshable { await load() }
         .task(id: "\(model.me?.handle ?? "")|\(model.marksVersion)") { await load() }
@@ -115,7 +117,7 @@ private struct MeHeader: View {
                 .disabled(uploading)
                 .accessibilityLabel("更换头像")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(me.name).font(.title2.bold()).lineLimit(1)
+                    Text(me.name).font(.title3.bold()).lineLimit(1)
                     Text("@\(me.handle)").font(.subheadline).foregroundStyle(Color.muted)
                 }
                 Spacer(minLength: 8)
@@ -136,7 +138,7 @@ private struct MeHeader: View {
                     } label: {
                         VStack(spacing: 3) {
                             Text("\(profile?.total(kind: kind, status: .done) ?? 0)")
-                                .font(.title2.bold())
+                                .font(.title3.bold())
                                 .monospacedDigit()
                             Text("\(kind.label) · \(Status.done.label(for: kind))")
                                 .font(.caption)

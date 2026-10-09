@@ -20,25 +20,34 @@ struct SearchView: View {
     private var text: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        List {
-            if text.isEmpty {
-                start
-            } else {
-                if !mine.isEmpty { mineSection }
-                addSection
+        // The title and our own field over the list, not .searchable and a navigation title:
+        // iOS 26 put a search tab's field at the bottom, iOS 27 hides it until the list is pulled
+        // down, and activating it folds the title away. These stay where they are on every version.
+        VStack(alignment: .leading, spacing: 0) {
+            Text("搜索")
+                .font(.largeTitle.bold())
+                .padding(.horizontal, 16)
+                // Where the other tabs' large titles sit, under an empty navigation bar.
+                .padding(.top, 56)
+                .padding(.bottom, 10)
+            field
+            List {
+                if text.isEmpty {
+                    start
+                } else {
+                    if !mine.isEmpty { mineSection }
+                    addSection
+                }
             }
+            .listStyle(.plain)
+            .scrollDismissesKeyboard(.immediately)
         }
-        .listStyle(.plain)
-        .scrollDismissesKeyboard(.immediately)
+        .background(Color.paper)
         .navigationTitle("搜索")
-        // Always shown under the title: iOS 26 puts a search tab's field in the tab bar, but
-        // iOS 27 treats the tab like any other and hides the field until the list is pulled down.
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品名，中文、原名都可以")
-        .searchFocused($focused)
+        .toolbarVisibility(.hidden, for: .navigationBar)
         // Opening the tab, or ＋ on the home page, is for typing straight away.
         .onAppear { if query.isEmpty { focused = true } }
         .onChange(of: model.tab) { _, tab in if tab == .search, query.isEmpty { focused = true } }
-        .onSubmit(of: .search) { Task { await search() } }
         .onChange(of: kind) { if searched != nil { Task { await search() } } }
         // Your own marks follow the typing; the sources are asked on 搜索, since they take seconds.
         .task(id: text) {
@@ -63,6 +72,29 @@ struct SearchView: View {
                 }
             }
         }
+    }
+
+    private var field: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.muted)
+            TextField("作品名，中文、原名都可以", text: $query)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .onSubmit { Task { await search() } }
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Color.muted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("清除")
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .background(Capsule().fill(Color.card))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     private var start: some View {
