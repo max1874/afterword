@@ -104,15 +104,25 @@ export default function App() {
 function Footer() {
   const root = useRoot();
   return (
-    <footer className="mx-auto flex max-w-6xl justify-between border-t border-line px-4 py-6 text-xs text-muted sm:px-6">
-      <a href="https://github.com/max1874/afterword" className="hover:text-ink">
-        后记 Afterword · 开源
-      </a>
-      {root?.viewer ? null : (
-        <Link to="/login" className="hover:text-ink">
-          登录
-        </Link>
-      )}
+    <footer className="mx-auto max-w-6xl border-t border-line px-4 py-6 text-xs text-muted sm:px-6">
+      <div className="flex justify-between">
+        <a href="https://github.com/max1874/afterword" className="hover:text-ink">
+          后记 Afterword · 开源
+        </a>
+        {root?.viewer ? null : (
+          <Link to="/login" className="hover:text-ink">
+            登录
+          </Link>
+        )}
+      </div>
+      {/* TMDB's terms ask every product using its API for this notice. */}
+      <p className="mt-3 leading-relaxed">
+        作品资料和封面来自豆瓣、
+        <a href="https://www.themoviedb.org" className="underline hover:text-ink">
+          TMDB
+        </a>
+        、Bangumi、Google Books、Steam、IGDB 和 SteamGridDB。本产品使用 TMDB API，但未经 TMDB 认可或认证。
+      </p>
     </footer>
   );
 }

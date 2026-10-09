@@ -53,9 +53,14 @@ struct MeView: View {
                     Button("退出登录", role: .destructive) { confirmSignOut = true }
                         .frame(maxWidth: .infinity)
                 } footer: {
-                    Text("后记 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
+                    VStack(spacing: 10) {
+                        Text("后记 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                        // TMDB's terms ask every product using its API for this notice.
+                        Text("作品资料和封面来自豆瓣、TMDB、Bangumi、Google Books、Steam、IGDB 和 SteamGridDB。本产品使用 TMDB API，但未经 TMDB 认可或认证。")
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
                 }
             }
         }
@@ -68,8 +73,8 @@ struct MeView: View {
         #if DEBUG
         .navigationDestination(isPresented: $showAccount) { AccountView() }
         .onAppear {
-            if model.debugSheet == "account" {
-                model.debugSheet = nil
+            if model.debugSheet == "account" || model.debugSheet?.hasPrefix("delete:") == true {
+                if model.debugSheet == "account" { model.debugSheet = nil }
                 showAccount = true
             }
         }
@@ -410,6 +415,16 @@ struct AccountView: View {
         }
         .navigationTitle("账号与安全")
         .navigationBarTitleDisplayMode(.inline)
+        #if DEBUG
+        // `-AfterwordSheet delete:<handle>` runs 永久删除 as if confirmed, for simulator runs that cannot tap.
+        .task {
+            guard let sheet = model.debugSheet, sheet.hasPrefix("delete:") else { return }
+            model.debugSheet = nil
+            try? await Task.sleep(for: .seconds(2))
+            deleteHandle = String(sheet.dropFirst("delete:".count))
+            await perform { try await model.deleteAccount(confirming: deleteHandle) }
+        }
+        #endif
         .refreshable { await load() }
         .task { await load() }
         .confirmationDialog(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }), titleVisibility: .visible, presenting: confirm) { which in
