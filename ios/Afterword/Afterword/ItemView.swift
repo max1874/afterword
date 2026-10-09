@@ -15,8 +15,6 @@ struct ItemView: View {
     @State private var choosingArtwork = false
     @State private var summaryExpanded = false
     @State private var rateError: String?
-    /// Opens the form once for an item just picked from search, which has no mark yet.
-    @State private var offeredEditor = false
 
     var body: some View {
         ScrollView {
@@ -112,17 +110,21 @@ struct ItemView: View {
                     .padding(.top, 2)
             }
 
-            markRow(item).padding(.top, 20)
-            if mine { quickStatus(item).padding(.top, 10) }
+            if mine {
+                quickStatus(item).padding(.top, 22)
+                markLine(item).padding(.top, 10)
+            } else {
+                markRow(item).padding(.top, 20)
+            }
 
             if mine, item.status != nil, item.status != .wish, model.me?.usesRatings ?? true {
                 StarInput(rating: Binding(get: { item.rating }, set: { rating in Task { await rate(item, rating) } }))
                     .padding(.top, 16)
-                if let rateError {
-                    Text(rateError).font(.footnote).foregroundStyle(Color.danger).padding(.top, 6)
-                }
             } else if !mine, ownerRatings, item.rating != nil {
                 Stars(rating: item.rating).scaleEffect(1.4).padding(.top, 14)
+            }
+            if let rateError {
+                Text(rateError).font(.footnote).foregroundStyle(Color.danger).padding(.top, 6)
             }
 
             VStack(alignment: .leading, spacing: 26) {
@@ -186,22 +188,22 @@ struct ItemView: View {
         }
     }
 
-    /// Your own mark is a big button to the form; someone else's is a label.
-    @ViewBuilder private func markRow(_ item: MarkedItem) -> some View {
-        if mine {
-            Button { editing = true } label: {
-                Label(
-                    item.status.map { "\($0.label(for: item.kind)) · \(monthDay(item.markedOn))" } ?? "标记这部作品",
-                    systemImage: item.status == nil ? "plus" : "checkmark"
-                )
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .foregroundStyle(Color.paper)
-                .background(Capsule().fill(Color.ink))
+    /// Under your own status buttons: since when, and the way to the date, comment and rating.
+    private func markLine(_ item: MarkedItem) -> some View {
+        Button { editing = true } label: {
+            HStack(spacing: 4) {
+                Text(item.status.map { "\(monthDay(item.markedOn))\($0.label(for: item.kind))" } ?? "选一个状态标记它")
+                    .foregroundStyle(Color.muted)
+                Text(item.status == nil ? "· 写短评" : "· 修改").fontWeight(.semibold)
             }
-            .buttonStyle(.plain)
-        } else if let status = item.status {
+            .font(.footnote)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Someone else's mark, as a label.
+    @ViewBuilder private func markRow(_ item: MarkedItem) -> some View {
+        if let status = item.status {
             Text("\(ownerName) \(status.label(for: item.kind)) · \(monthDay(item.markedOn))")
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 18)
@@ -237,6 +239,16 @@ struct ItemView: View {
             if mine {
                 Button(item.status == nil ? "标记" : "修改标记", systemImage: "pencil") { editing = true }
             }
+            if mine {
+                // Your own home's kind tiles: this work's kind, and 全部.
+                ForEach([item.kind.rawValue, "all"], id: \.self) { key in
+                    let label = Kind(rawValue: key)?.label ?? "全部"
+                    let on = model.me?.tiles?[key] == item.id
+                    Button(on ? "恢复「\(label)」磁贴默认图" : "设为「\(label)」磁贴封面", systemImage: "square.grid.2x2") {
+                        Task { await setTile(key, on ? nil : item.id) }
+                    }
+                }
+            }
             // Items are shared, so only an admin replaces their artwork.
             if model.me?.isAdmin == true, item.kind.hasArtwork {
                 Button("更换横图", systemImage: "photo.on.rectangle") { choosingArtwork = true }
@@ -256,6 +268,17 @@ struct ItemView: View {
     @State private var ownerRatings = true
 
     private var itemPath: String { "users/\(handle)/items/\(id)" }
+
+    private func setTile(_ key: String, _ itemId: String?) async {
+        rateError = nil
+        do {
+            try await model.api.api("PUT", "tiles/\(key)", body: ["item": itemId.map { $0 as Any } ?? NSNull()])
+            await model.loadMe()
+            model.marksVersion += 1
+        } catch {
+            rateError = error.localizedDescription
+        }
+    }
 
     /// Stars on your own page save straight away, keeping the rest of the mark.
     private func rate(_ item: MarkedItem, _ rating: Int?) async {
@@ -298,10 +321,6 @@ struct ItemView: View {
                 choosingArtwork = true
             }
             #endif
-            if mine, response.item.status == nil, !offeredEditor {
-                offeredEditor = true
-                editing = true
-            }
             if !mine, ownerName.isEmpty {
                 let cached: Profile? = model.api.cached("users/\(handle)")
                 ownerName = cached?.name ?? ""

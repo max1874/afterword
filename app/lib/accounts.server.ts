@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { data } from "react-router";
 
+import type { TileKey } from "./db.server";
+import { isKind } from "./kinds";
 import { base64url, sha256Hex, sqlTime } from "./session.server";
 
 export type User = {
@@ -11,6 +13,8 @@ export type User = {
   created_at: string;
   /** 0 when the person turned star ratings off; missing before migration 0005. */
   ratings?: number;
+  /** JSON of the works chosen for the kind tiles on their home, by tile; missing before migration 0009. */
+  tiles?: string | null;
 };
 
 /** Whether this person rates what they mark; on unless they turned it off in settings. */
@@ -19,6 +23,24 @@ export const usesRatings = (user: Pick<User, "ratings"> | null | undefined) => u
 export async function saveRatings(userId: string, on: boolean) {
   await env.DB.prepare("UPDATE users SET ratings = ? WHERE id = ?").bind(on ? 1 : 0, userId).run();
 }
+
+/** The works chosen for this person's kind tiles, by tile ("all", "screen", …). */
+export function chosenTiles(user: Pick<User, "tiles"> | null | undefined): Partial<Record<TileKey, string>> {
+  try {
+    const value = JSON.parse(user?.tiles ?? "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Shows `itemId` on one of this person's kind tiles, or with null goes back to the newest mark. */
+export async function saveTile(user: Pick<User, "id" | "tiles">, key: TileKey, itemId: string | null) {
+  const tiles = { ...chosenTiles(user), [key]: itemId ?? undefined };
+  await env.DB.prepare("UPDATE users SET tiles = ? WHERE id = ?").bind(JSON.stringify(tiles), user.id).run();
+}
+
+export const isTileKey = (value: unknown): value is TileKey => value === "all" || isKind(value);
 
 export type Passkey = {
   id: string;

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-import { coverSrc } from "./format";
+import { backdropSrc, coverSrc } from "./format";
 import type { Kind, Status } from "./kinds";
 
 export type Item = {
@@ -48,7 +48,7 @@ export function today() {
 }
 
 /** `until` is a year: marks from that year and before, for jumping down the library. */
-type MarkFilter = { userId: string; kind?: Kind; status?: Status; until?: number };
+type MarkFilter = { userId: string; kind?: Kind; status?: Status; until?: number; q?: string };
 
 function whereClause(filter: MarkFilter) {
   const where = ["m.user_id = ?"];
@@ -64,6 +64,12 @@ function whereClause(filter: MarkFilter) {
   if (filter.until) {
     where.push("m.marked_on < ?");
     params.push(`${filter.until + 1}`);
+  }
+  // Part of the title or original title, matched literally.
+  if (filter.q) {
+    const like = `%${filter.q.replace(/[\\%_]/g, "\\$&")}%`;
+    where.push("(i.title LIKE ? ESCAPE '\\' OR i.original_title LIKE ? ESCAPE '\\')");
+    params.push(like, like);
   }
   return { clause: `WHERE ${where.join(" AND ")}`, params };
 }
@@ -118,30 +124,51 @@ export async function listShelves(filter: Omit<MarkFilter, "status">) {
   return Object.fromEntries(shelves) as Record<Status, MarkedItem[]>;
 }
 
-/** Covers on each kind tile of a home page. */
-const TILE_COVERS = 3;
+/** Where a home page's kind tiles lead: each kind, and every kind under "all". */
+export type TileKey = Kind | "all";
 
-/** The latest covers per kind, and across all kinds under "all", for the tiles on a home page. */
-export async function tileCovers(userId: string) {
-  const { results } = await env.DB.prepare(
-    `SELECT kind, cover_key, cover_url FROM (
-       SELECT i.kind, i.cover_key, i.cover_url, m.marked_on, m.marked_at,
-              ROW_NUMBER() OVER (PARTITION BY i.kind ORDER BY m.marked_on DESC, m.marked_at DESC) AS n
-       FROM marks m JOIN items i ON i.id = m.item_id
-       WHERE m.user_id = ? AND (i.cover_key IS NOT NULL OR i.cover_url IS NOT NULL)
-     )
-     WHERE n <= ?
-     ORDER BY marked_on DESC, marked_at DESC`,
-  )
-    .bind(userId, TILE_COVERS)
-    .all<{ kind: Kind; cover_key: string | null; cover_url: string | null }>();
-  const tiles: Record<Kind | "all", string[]> = { all: [], screen: [], book: [], comic: [], game: [] };
-  for (const row of results) {
-    const src = coverSrc(row);
-    if (!src) continue;
-    tiles[row.kind].push(src);
-    // The newest three overall are each among the newest three of their kind.
-    if (tiles.all.length < TILE_COVERS) tiles.all.push(src);
+/**
+ * The picture on a kind tile. By default it is the cover of the newest mark, washed into
+ * its colours (`wash`); a work the person chose for the tile shows its artwork or cover as is.
+ */
+export type Tile = { src: string; wash: boolean; item: string; custom: boolean } | null;
+
+/** The kind tiles of a home page, from the person's chosen works (`users.tiles`) or their newest marks. */
+export async function kindTiles(userId: string, chosen: Partial<Record<TileKey, string>>) {
+  const ids = Object.values(chosen).filter((id): id is string => Boolean(id));
+  const [{ results: latest }, { results: picked }] = await Promise.all([
+    env.DB.prepare(
+      `SELECT * FROM (
+         SELECT i.id, i.kind, i.cover_key, i.cover_url, m.marked_on, m.marked_at,
+                ROW_NUMBER() OVER (PARTITION BY i.kind ORDER BY m.marked_on DESC, m.marked_at DESC) AS n
+         FROM marks m JOIN items i ON i.id = m.item_id
+         WHERE m.user_id = ? AND (i.cover_key IS NOT NULL OR i.cover_url IS NOT NULL)
+       )
+       WHERE n = 1
+       ORDER BY marked_on DESC, marked_at DESC`,
+    )
+      .bind(userId)
+      .all<{ id: string; kind: Kind; cover_key: string | null; cover_url: string | null }>(),
+    ids.length
+      ? env.DB.prepare(
+          `SELECT id, cover_key, cover_url, backdrop_key, backdrop_url FROM items WHERE id IN (${ids.map(() => "?").join(", ")})`,
+        )
+          .bind(...ids)
+          .all<{ id: string; cover_key: string | null; cover_url: string | null; backdrop_key: string | null; backdrop_url: string | null }>()
+      : Promise.resolve({ results: [] }),
+  ]);
+  const tiles = {} as Record<TileKey, Tile>;
+  for (const key of ["all", "screen", "book", "comic", "game"] as const) {
+    const own = picked.find((item) => item.id === chosen[key]);
+    const ownSrc = own && (backdropSrc(own) ?? coverSrc(own));
+    // The newest mark overall is the newest of its own kind.
+    const newest = key === "all" ? latest[0] : latest.find((row) => row.kind === key);
+    const newestSrc = newest && coverSrc(newest);
+    tiles[key] = ownSrc
+      ? { src: ownSrc, wash: false, item: own.id, custom: true }
+      : newestSrc
+        ? { src: newestSrc, wash: true, item: newest.id, custom: false }
+        : null;
   }
   return tiles;
 }

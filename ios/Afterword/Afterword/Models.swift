@@ -32,8 +32,9 @@ nonisolated enum Kind: String, Codable, CaseIterable, Identifiable, Hashable {
     }
 }
 
+/// In the order a work goes through them, as everywhere they are listed: 想看, 在看, 看过.
 nonisolated enum Status: String, Codable, CaseIterable, Identifiable, Hashable {
-    case done, doing, wish
+    case wish, doing, done
 
     var id: String { rawValue }
 
@@ -61,6 +62,8 @@ nonisolated struct Me: Decodable, Equatable {
     let isAdmin: Bool
     /// Off when star ratings are turned off in settings; missing from older servers and caches.
     let ratings: Bool?
+    /// The works chosen for the kind tiles on their home, by tile ("all", "comic"…); older servers omit it.
+    let tiles: [String: String]?
     let today: String
 
     var usesRatings: Bool { ratings ?? true }
@@ -126,8 +129,8 @@ nonisolated struct Shelves: Decodable {
     let doing: [MarkedItem]
     let done: [MarkedItem]
     let wish: [MarkedItem]
-    /// Cover paths for the kind tiles, keyed by kind and "all"; older servers omit it.
-    let tiles: [String: [String]]?
+    /// The picture on each kind tile, keyed by kind and "all"; older servers omit it.
+    let kindTiles: [String: KindTile?]?
 
     subscript(status: Status) -> [MarkedItem] {
         switch status {
@@ -136,6 +139,15 @@ nonisolated struct Shelves: Decodable {
         case .wish: wish
         }
     }
+}
+
+/// A kind tile's picture: by default the newest mark's cover washed into its colours,
+/// or a work the person chose for the tile, shown as is.
+nonisolated struct KindTile: Decodable, Hashable {
+    let src: String
+    let wash: Bool
+    let item: String
+    let custom: Bool
 }
 
 nonisolated struct ItemResponse: Decodable {

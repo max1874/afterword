@@ -13,7 +13,10 @@ import {
   recoveryCodeStatements,
   revokeInvite,
   saveProfile,
+  chosenTiles,
+  isTileKey,
   saveRatings,
+  saveTile,
   spendRecoveryCode,
   unusedRecoveryCodes,
   usesRatings,
@@ -28,7 +31,7 @@ import {
   listShelves,
   markedSourceIds,
   saveMark,
-  tileCovers,
+  kindTiles,
   today,
   type Item,
 } from "~/lib/db.server";
@@ -107,6 +110,8 @@ on("GET", "me", async ({ request }) => {
     name: viewer.name,
     isAdmin: Boolean(viewer.is_admin),
     ratings: usesRatings(user),
+    // The works chosen for the kind tiles on their home, by tile.
+    tiles: chosenTiles(user),
     today: today(),
   });
 });
@@ -142,9 +147,11 @@ on("GET", "users/:handle/marks", async ({ params, url }) => {
   const status = isStatus(statusParam) ? statusParam : undefined;
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
   const until = Number(url.searchParams.get("until")) || undefined;
+  // Part of a title, to find a work among one's marks.
+  const q = url.searchParams.get("q")?.trim().slice(0, 50) || undefined;
   const [{ items, hasMore }, yearCounts] = await Promise.all([
-    listMarked({ userId: user.id, kind, status, until, page }),
-    countByYear({ userId: user.id, kind, status }),
+    listMarked({ userId: user.id, kind, status, until, q, page }),
+    countByYear({ userId: user.id, kind, status, q }),
   ]);
   return json({ page, hasMore, yearCounts, items: items.map(withCover) });
 });
@@ -153,14 +160,16 @@ on("GET", "users/:handle/shelves", async ({ params, url }) => {
   const user = await userOrThrow(params[0]);
   const kindParam = url.searchParams.get("kind");
   const kind = isKind(kindParam) ? kindParam : undefined;
-  const [shelves, tiles] = await Promise.all([listShelves({ userId: user.id, kind }), tileCovers(user.id)]);
+  const [shelves, tiles] = await Promise.all([listShelves({ userId: user.id, kind }), kindTiles(user.id, chosenTiles(user))]);
   fillDetails(shelves.doing);
   return json({
     doing: shelves.doing.map(withCover),
     done: shelves.done.map(withCover),
     wish: shelves.wish.map(withCover),
-    // Cover paths for the kind tiles, by kind and under "all".
-    tiles,
+    // The picture on each kind tile, by kind and under "all".
+    kindTiles: tiles,
+    // Cover paths per tile, for app builds from before `kindTiles`.
+    tiles: Object.fromEntries(Object.entries(tiles).map(([key, tile]) => [key, tile ? [tile.src] : []])),
   });
 });
 
@@ -173,6 +182,22 @@ on("GET", "users/:handle/items/:id", async ({ request, params }) => {
   // The first visit waits briefly for the summary, so the page is not empty.
   if (await fillDetailsNow(item)) item = (await getItem(params[1], user.id)) ?? item;
   return json({ mine, item: withCover(item) });
+});
+
+// Shows a work on one of your kind tiles, or with `item: null` the newest mark again.
+on("PUT", "tiles/:key", async ({ request, params }) => {
+  const viewer = await viewerOrThrow(request);
+  if (!isTileKey(params[0])) throw new ApiError(404, "没有这个分类");
+  const { item: itemId } = await body(request);
+  if (itemId !== null && typeof itemId !== "string") throw new ApiError(400, "item 要是条目 id，或 null 表示恢复默认");
+  if (itemId) {
+    const item = await getItem(itemId, viewer.id);
+    if (!item) throw new ApiError(404, "没有这个条目");
+    if (params[0] !== "all" && item.kind !== params[0]) throw new ApiError(400, "这部作品不属于这个分类");
+  }
+  const user = await getUser(viewer.id);
+  await saveTile({ id: viewer.id, tiles: user?.tiles }, params[0], itemId || null);
+  return json({ tiles: chosenTiles(await getUser(viewer.id)) });
 });
 
 on("PUT", "marks/:id", async ({ request, params }) => {

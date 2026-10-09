@@ -1,7 +1,8 @@
 export const KINDS = ["screen", "book", "comic", "game"] as const;
 export type Kind = (typeof KINDS)[number];
 
-export const STATUSES = ["done", "doing", "wish"] as const;
+/** In the order a work goes through them: 想看, 在看, 看过. */
+export const STATUSES = ["wish", "doing", "done"] as const;
 export type Status = (typeof STATUSES)[number];
 
 const KIND_INFO: Record<Kind, { label: string; verb: string; creator: string }> = {

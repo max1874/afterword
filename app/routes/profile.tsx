@@ -4,9 +4,9 @@ import type { Route } from "./+types/profile";
 import { Cover } from "~/components/cover";
 import { PageTitle, profileHref } from "~/components/profile-nav";
 import { WideCard } from "~/components/wide-card";
-import { profileFromParam } from "~/lib/accounts.server";
+import { chosenTiles, profileFromParam } from "~/lib/accounts.server";
 import { fillDetails } from "~/lib/details.server";
-import { countByKindAndStatus, listShelves, tileCovers } from "~/lib/db.server";
+import { countByKindAndStatus, kindTiles, listShelves, type Tile, type TileKey } from "~/lib/db.server";
 import { backdropSrc, coverSrc, joinText, monthDay } from "~/lib/format";
 import { KINDS, kindLabel, statusLabel, total, type Kind, type Status } from "~/lib/kinds";
 import { getViewer } from "~/lib/session.server";
@@ -28,7 +28,7 @@ export async function loader({ request, params: routeParams }: Route.LoaderArgs)
   const [shelves, counts, tiles] = await Promise.all([
     listShelves({ userId: user.id }),
     countByKindAndStatus(user.id),
-    tileCovers(user.id),
+    kindTiles(user.id, chosenTiles(user)),
   ]);
   fillDetails(shelves.doing);
   const withArt = (items: typeof shelves.done) =>
@@ -76,7 +76,7 @@ export default function ProfileHome({ loaderData }: Route.ComponentProps) {
           ) : null}
 
           <Row title="分类" to={profileHref(handle, "library", {})}>
-            <KindTiles handle={handle} covers={tiles} />
+            <KindTiles handle={handle} tiles={tiles} />
           </Row>
 
           {(["done", "wish"] as const).map((status) =>
@@ -120,23 +120,34 @@ function Row({ title, count, to, children }: { title: string; count?: number; to
   );
 }
 
-/** Tiles into the library by kind, like Infuse's Favorites: that kind's latest covers side by side. */
-function KindTiles({ handle, covers }: { handle: string; covers: Record<Kind | "all", string[]> }) {
-  const tiles: [Kind | "all", string][] = [["all", "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])];
-  return tiles.map(([key, label]) => (
-    <li key={key} className="w-[112px] shrink-0 snap-start sm:w-[168px]">
-      <Link to={profileHref(handle, "library", { kind: key === "all" ? undefined : key })} className="group block">
-        <div className="relative h-[68px] overflow-hidden rounded-2xl bg-card shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.25)] transition group-hover:-translate-y-0.5 sm:h-[84px]">
-          <div aria-hidden className="absolute inset-0 flex">
-            {covers[key].map((src) => (
-              <img key={src} src={src} alt="" referrerPolicy="no-referrer" className="h-full min-w-0 flex-1 object-cover" />
-            ))}
+/**
+ * Tiles into the library by kind, with the name on the picture. By default the newest
+ * mark's cover washed into its colours, so the row stays calm; a work chosen for the
+ * tile (from its item page) shows its artwork as is.
+ */
+function KindTiles({ handle, tiles }: { handle: string; tiles: Record<TileKey, Tile> }) {
+  const keys: [TileKey, string][] = [["all", "全部"], ...KINDS.map((k): [Kind, string] => [k, kindLabel(k)])];
+  return keys.map(([key, label]) => {
+    const tile = tiles[key];
+    return (
+      <li key={key} className="w-[136px] shrink-0 snap-start sm:w-[184px]">
+        <Link to={profileHref(handle, "library", { kind: key === "all" ? undefined : key })} className="group block">
+          <div className="relative h-[84px] overflow-hidden rounded-2xl bg-card shadow-[inset_0_0_0_0.5px_rgba(127,127,127,0.25)] transition group-hover:-translate-y-0.5 sm:h-[112px]">
+            {tile ? (
+              <img
+                src={tile.src}
+                alt=""
+                referrerPolicy="no-referrer"
+                className={`absolute inset-0 size-full object-cover ${tile.wash ? "scale-150 blur-2xl saturate-150" : ""}`}
+              />
+            ) : null}
+            {tile ? <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" /> : null}
+            <p className={`absolute bottom-2 left-3 text-[15px] font-semibold sm:bottom-3 sm:text-[17px] ${tile ? "text-white" : ""}`}>{label}</p>
           </div>
-        </div>
-        <p className="mt-1.5 text-[13px] font-medium">{label}</p>
-      </Link>
-    </li>
-  ));
+        </Link>
+      </li>
+    );
+  });
 }
 
 function PosterCard({ item, handle, status }: { item: ShelfItem; handle: string; status: Status }) {

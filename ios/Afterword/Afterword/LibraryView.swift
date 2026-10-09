@@ -122,7 +122,7 @@ struct LibraryView: View {
         VStack(spacing: 12) {
             Text("这里还空着。").font(.title3).foregroundStyle(Color.muted)
             if mine && kind == nil && status == nil {
-                Button("记下第一部作品") { model.tab = .add }
+                Button("记下第一部作品") { model.tab = .search }
             }
         }
         .frame(maxWidth: .infinity)

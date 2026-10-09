@@ -26,7 +26,7 @@ enum Route: Hashable {
 }
 
 enum AppTab: Hashable {
-    case home, library, settings, add
+    case home, library, me, search
 }
 
 /// Who is signed in, and the sign-in flows.
@@ -39,6 +39,7 @@ final class AppModel {
     var tab: AppTab = .home
     var homePath: [Route] = []
     var libraryPath: [Route] = []
+    var searchPath: [Route] = []
     /// Bumped whenever marks change, so lists reload.
     var marksVersion = 0
     /// Marked items seen in lists, by `handle/id`, so item pages open without waiting.
@@ -46,7 +47,7 @@ final class AppModel {
     /// Recovery codes from joining or regenerating, shown once over everything.
     var freshRecoveryCodes: [String]?
     #if DEBUG
-    /// A query the 记一笔 tab searches on launch, for runs without a keyboard.
+    /// A query the search tab searches on launch, for runs without a keyboard.
     var debugSearch: String?
     /// A sheet the item page opens on load (`artwork`), for simulator runs that cannot tap.
     var debugSheet: String?
@@ -84,7 +85,7 @@ final class AppModel {
         let result: Result = try await api.api("POST", "auth/recovery", body: ["handle": handle, "code": code])
         try await finishSignIn(result.token)
         // Like the web, land where a passkey for this device can be added.
-        tab = .settings
+        tab = .me
     }
 
     /// Creates an account from an invite; returns the new recovery codes to show once.
@@ -115,6 +116,7 @@ final class AppModel {
         knownItems = [:]
         homePath = []
         libraryPath = []
+        searchPath = []
         tab = .home
     }
 

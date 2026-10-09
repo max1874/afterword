@@ -7,13 +7,14 @@ struct AfterwordApp: App {
     init() {
         let model = AppModel()
         #if DEBUG
-        // For runs against a dev server: `-AfterwordToken <token> -AfterwordTab add -AfterwordOpen /@max/items/<id> -AfterwordSheet artwork`.
+        // For runs against a dev server: `-AfterwordToken <token> -AfterwordTab search -AfterwordSearch <query>
+        // -AfterwordOpen /@max/items/<id> -AfterwordSheet artwork`.
         let defaults = UserDefaults.standard
         if let token = defaults.string(forKey: "AfterwordToken") { model.api.setToken(token) }
         switch defaults.string(forKey: "AfterwordTab") {
-        case "add": model.tab = .add
+        case "search": model.tab = .search
         case "library": model.tab = .library
-        case "settings": model.tab = .settings
+        case "me": model.tab = .me
         default: break
         }
         model.debugSearch = defaults.string(forKey: "AfterwordSearch")
@@ -56,12 +57,14 @@ struct RootView: View {
                             LibraryView(handle: me.handle).appRoutes()
                         }
                     }
-                    Tab("设置", systemImage: "gearshape", value: .settings) {
-                        NavigationStack { SettingsView() }
+                    Tab("我的", systemImage: "person.crop.circle", value: .me) {
+                        NavigationStack { MeView() }
                     }
-                    // 记一笔 starts with a search, so it is the tab bar's search button.
-                    Tab("记一笔", systemImage: "plus", value: .add, role: .search) {
-                        NavigationStack { AddView() }
+                    // Finds a work among your marks, or anywhere to add it: adding starts with a search.
+                    Tab("搜索", systemImage: "magnifyingglass", value: .search, role: .search) {
+                        NavigationStack(path: $model.searchPath) {
+                            SearchView().appRoutes()
+                        }
                     }
                 }
             } else if let error = model.loadError {

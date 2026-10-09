@@ -1,65 +1,44 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// 记一笔: search the sources, pick a result, or add a work by hand.
-struct AddView: View {
+/// 搜索: finds a work among your marks as you type, and, on 搜索, wherever the sources
+/// know it, to add and mark. Adding starts here, so there is no separate 记一笔 screen.
+struct SearchView: View {
     @Environment(AppModel.self) private var model
-    @State private var kind: Kind = .screen
+    /// The kind searched for to add; remembered, since most additions are of one kind.
+    @AppStorage("searchKind") private var kind: Kind = .screen
     @State private var query = ""
-    @State private var searched = ""
+    @State private var mine: [MarkedItem] = []
+    @State private var searched: (text: String, kind: Kind)?
     @State private var groups: [SearchGroup] = []
     @State private var searching = false
     @State private var picking: String?
     @State private var error: String?
-    @State private var opened: Route?
     @State private var showManual = false
-    @State private var showImport = false
+
+    private var text: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         List {
-            Section {
-                Picker("类型", selection: $kind) {
-                    ForEach(Kind.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-            if let error {
-                Text(error).foregroundStyle(Color.danger).listRowBackground(Color.clear)
-            }
-            if searching {
-                HStack { Spacer(); ProgressView("搜索中…"); Spacer() }.listRowBackground(Color.clear)
-            } else if !searched.isEmpty {
-                ForEach(groups) { group in
-                    Section {
-                        ForEach(group.items) { candidate in row(candidate) }
-                    } header: {
-                        HStack {
-                            Text(group.label).foregroundStyle(Color.ink)
-                            if let failure = group.error {
-                                Text("搜索失败（\(failure)）").foregroundStyle(Color.danger)
-                            } else {
-                                Text("\(group.items.count) 条")
-                            }
-                        }
-                    }
-                }
-                if groups.allSatisfy(\.items.isEmpty) {
-                    Text("没有搜到“\(searched)”。试试原名，或者手动添加。")
-                        .foregroundStyle(Color.muted)
-                        .listRowBackground(Color.clear)
-                }
-            }
-            Section {
-                Button("搜不到？手动添加") { showManual = true }
-                Button("有一批旧标记？从文件导入") { showImport = true }
+            if text.isEmpty {
+                start
+            } else {
+                if !mine.isEmpty { mineSection }
+                addSection
             }
         }
-        .navigationTitle("记一笔")
+        .listStyle(.plain)
+        .scrollDismissesKeyboard(.immediately)
+        .navigationTitle("搜索")
         .searchable(text: $query, prompt: "作品名，中文、原名都可以")
         .onSubmit(of: .search) { Task { await search() } }
-        .onChange(of: kind) { if !searched.isEmpty { Task { await search() } } }
+        .onChange(of: kind) { if searched != nil { Task { await search() } } }
+        // Your own marks follow the typing; the sources are asked on 搜索, since they take seconds.
+        .task(id: text) {
+            guard !text.isEmpty else { mine = []; return }
+            try? await Task.sleep(for: .milliseconds(250))
+            await findMine(text)
+        }
         #if DEBUG
         .task {
             if let preset = model.debugSearch {
@@ -69,9 +48,6 @@ struct AddView: View {
             }
         }
         #endif
-        .navigationDestination(item: $opened) { route in
-            if case .item(let handle, let id) = route { ItemView(handle: handle, id: id) }
-        }
         .sheet(isPresented: $showManual) {
             NavigationStack {
                 ManualAddView(kind: kind) { id in
@@ -80,49 +56,150 @@ struct AddView: View {
                 }
             }
         }
-        .sheet(isPresented: $showImport) {
-            NavigationStack { ImportView() }
+    }
+
+    private var start: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("搜你标记过的作品，或者从豆瓣、TMDB、Bangumi、Steam 找新的来标记。")
+                .font(.subheadline)
+                .foregroundStyle(Color.muted)
+            Button { showManual = true } label: {
+                Label("手动添加一部作品", systemImage: "square.and.pencil").font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 12)
+        .listRowSeparator(.hidden)
+    }
+
+    private var mineSection: some View {
+        Section {
+            ForEach(mine) { item in
+                NavigationLink(value: Route.item(handle: model.me?.handle ?? "", id: item.id)) {
+                    HStack(spacing: 12) {
+                        CoverImage(path: item.cover, title: item.title).frame(width: 44)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text([item.status.map { "\($0.label(for: item.kind)) · \(monthDay(item.markedOn))" }, item.originalTitle].compactMap { $0 }.joined(separator: " · "))
+                                .font(.footnote)
+                                .foregroundStyle(Color.muted)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        } header: {
+            header("我的标记")
         }
     }
 
+    private var addSection: some View {
+        Section {
+            Picker("类型", selection: $kind) {
+                ForEach(Kind.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .listRowSeparator(.hidden)
+            if let error {
+                Text(error).font(.footnote).foregroundStyle(Color.danger).listRowSeparator(.hidden)
+            }
+            if searching {
+                HStack { Spacer(); ProgressView("正在找…"); Spacer() }
+                    .padding(.vertical, 20)
+                    .listRowSeparator(.hidden)
+            } else if let searched, searched.text == text, searched.kind == kind {
+                ForEach(groups.flatMap(\.items)) { candidate in row(candidate) }
+                if groups.allSatisfy(\.items.isEmpty) {
+                    Text("没有找到“\(text)”。试试原名，或者手动添加。")
+                        .font(.footnote)
+                        .foregroundStyle(Color.muted)
+                        .listRowSeparator(.hidden)
+                }
+                let failed = groups.filter { $0.error != nil }.map(\.label)
+                if !failed.isEmpty {
+                    Text("\(failed.joined(separator: "、")) 这次没有连上。")
+                        .font(.footnote)
+                        .foregroundStyle(Color.muted)
+                        .listRowSeparator(.hidden)
+                }
+                Button { showManual = true } label: {
+                    Label("手动添加", systemImage: "square.and.pencil").font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .listRowSeparator(.hidden)
+            } else {
+                Button { Task { await search() } } label: {
+                    Label("在\(kind.label)里找“\(text)”", systemImage: "magnifyingglass")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .listRowSeparator(.hidden)
+            }
+        } header: {
+            header("添加新作品")
+        }
+    }
+
+    private func header(_ title: String) -> some View {
+        Text(title)
+            .font(.title3.bold())
+            .foregroundStyle(Color.ink)
+            .textCase(nil)
+            .padding(.top, 8)
+    }
+
     private func row(_ candidate: Candidate) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            CoverImage(path: candidate.cover, title: candidate.title).frame(width: 56)
+        HStack(spacing: 12) {
+            CoverImage(path: candidate.cover, title: candidate.title).frame(width: 52)
             VStack(alignment: .leading, spacing: 3) {
-                Text(candidate.title).font(.headline)
-                let meta = [candidate.originalTitle, candidate.year.map(String.init), candidate.creators.map { "\(candidate.kind.creatorLabel) \($0)" }]
+                Text(candidate.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                let meta = [candidate.originalTitle, candidate.year.map(String.init), candidate.creators]
                     .compactMap { $0 }
                     .joined(separator: " · ")
-                if !meta.isEmpty { Text(meta).font(.footnote).foregroundStyle(Color.muted) }
-                if let summary = candidate.summary {
-                    Text(summary).font(.footnote).foregroundStyle(Color.muted).lineLimit(2)
-                }
+                if !meta.isEmpty { Text(meta).font(.footnote).foregroundStyle(Color.muted).lineLimit(2) }
+                Text(groups.first { $0.source == candidate.source }?.label ?? candidate.source)
+                    .font(.caption2)
+                    .foregroundStyle(Color.muted)
             }
             Spacer(minLength: 4)
             if let existing = candidate.existingId {
                 Button("已标记") { open(existing) }
-                    .font(.footnote)
-                    .buttonStyle(.borderless)
+                    .font(.footnote.weight(.semibold))
+                    .buttonStyle(.plain)
                     .foregroundStyle(Color.muted)
-                    .frame(maxHeight: .infinity)
             } else {
-                Button(picking == candidate.id ? "标记中…" : "标记") { Task { await pick(candidate) } }
-                    .font(.footnote)
-                    .buttonStyle(.bordered)
-                    .disabled(picking != nil)
-                    .frame(maxHeight: .infinity)
+                Button { Task { await pick(candidate) } } label: {
+                    Text(picking == candidate.id ? "…" : "标记")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.paper)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.ink))
+                }
+                .buttonStyle(.plain)
+                .disabled(picking != nil)
             }
         }
     }
 
     private func open(_ id: String) {
         guard let me = model.me else { return }
-        opened = .item(handle: me.handle, id: id)
+        model.searchPath.append(.item(handle: me.handle, id: id))
+    }
+
+    private func findMine(_ text: String) async {
+        guard let me = model.me else { return }
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "q", value: text)]
+        let found: MarksPage? = try? await model.api.api("GET", "users/\(me.handle)/marks?\(components.percentEncodedQuery ?? "")")
+        // A slower answer for earlier typing must not replace the current one.
+        if text == self.text, let found { mine = Array(found.items.prefix(8)) }
     }
 
     private func search() async {
-        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = text
         guard !text.isEmpty else { return }
+        let kind = kind
         searching = true
         error = nil
         defer { searching = false }
@@ -131,7 +208,7 @@ struct AddView: View {
             components.queryItems = [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "q", value: text)]
             let response: SearchResponse = try await model.api.api("GET", "search?\(components.percentEncodedQuery ?? "")")
             groups = response.groups
-            searched = text
+            searched = (text, kind)
         } catch {
             self.error = error.localizedDescription
         }
@@ -146,7 +223,7 @@ struct AddView: View {
                 "kind": candidate.kind.rawValue,
                 "source": candidate.source,
                 "source_id": candidate.sourceId ?? "",
-                "q": searched,
+                "q": searched?.text ?? text,
             ])
             open(created.id)
         } catch {

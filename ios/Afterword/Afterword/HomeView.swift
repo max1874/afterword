@@ -55,6 +55,15 @@ struct HomeView: View {
         .foregroundStyle(Color.ink)
         .navigationTitle("首页")
         .ownerSubtitle(mine ? nil : "\(profile?.name ?? handle) · @\(handle)")
+        .toolbar {
+            if mine {
+                // 记一笔: adding starts with a search, so this opens the search tab.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { model.tab = .search } label: { Image(systemName: "plus") }
+                        .accessibilityLabel("记一笔")
+                }
+            }
+        }
         .refreshable { await load() }
         .task(id: "\(handle)|\(model.marksVersion)") { await load() }
     }
@@ -88,22 +97,11 @@ struct HomeView: View {
         .padding(.top, 26)
     }
 
-    /// Tiles into the library by kind, like Infuse's Favorites: that kind's latest covers side by side.
+    /// Tiles into the library by kind, with the name on the picture.
     @ViewBuilder private var kindTiles: some View {
         ForEach([Kind?.none] + Kind.allCases.map { Optional($0) }, id: \.self) { kind in
-            let covers = shelves?.tiles?[kind?.rawValue ?? "all"] ?? []
             NavigationLink(value: Route.library(handle: handle, kind: kind, status: nil)) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Color.card
-                        .frame(width: 112, height: 68)
-                        .overlay {
-                            HStack(spacing: 0) {
-                                ForEach(covers, id: \.self) { path in TileCover(path: path) }
-                            }
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                    Text(kind?.label ?? "全部").font(.footnote.weight(.medium))
-                }
+                KindTileView(tile: shelves?.kindTiles?[kind?.rawValue ?? "all"].flatMap { $0 }, label: kind?.label ?? "全部")
             }
             .buttonStyle(.plain)
         }
@@ -132,7 +130,7 @@ struct HomeView: View {
         VStack(spacing: 12) {
             Text("这里还空着。").font(.title3).foregroundStyle(Color.muted)
             if mine {
-                Button("记下第一部作品") { model.tab = .add }
+                Button("记下第一部作品") { model.tab = .search }
             }
         }
         .frame(maxWidth: .infinity)
@@ -239,24 +237,46 @@ extension Status {
     static let shelfOrder: [Status] = [.doing, .done, .wish]
 }
 
-/// One cover filling its share of a kind tile.
-private struct TileCover: View {
+/**
+ A kind tile: by default the newest mark's cover washed into its colours, so the row stays
+ calm; a work chosen for the tile (from its item page's ⋯ menu) shows its artwork as is.
+ */
+private struct KindTileView: View {
     @Environment(AppModel.self) private var model
-    let path: String
+    let tile: KindTile?
+    let label: String
 
     @State private var image: UIImage?
 
-    init(path: String) {
-        self.path = path
-        _image = State(initialValue: CoverCache.shared.object(forKey: path as NSString))
+    init(tile: KindTile?, label: String) {
+        self.tile = tile
+        self.label = label
+        _image = State(initialValue: tile.flatMap { CoverCache.shared.object(forKey: $0.src as NSString) })
     }
 
     var body: some View {
-        Color.clear
+        Color.card
+            .frame(width: 136, height: 84)
             .overlay {
-                if let image { Image(uiImage: image).resizable().scaledToFill() }
+                if let image, let tile {
+                    if tile.wash {
+                        Image(uiImage: image).resizable().scaledToFill().scaleEffect(1.6).blur(radius: 18).saturation(1.4)
+                    } else {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    }
+                }
             }
-            .clipped()
-            .task(id: path) { image = await CoverImage.image(for: path, api: model.api) }
+            .overlay {
+                if tile != nil { LinearGradient(colors: [.clear, .black.opacity(0.4)], startPoint: .center, endPoint: .bottom) }
+            }
+            .overlay(alignment: .bottomLeading) {
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(tile == nil ? Color.ink : .white)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 9)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .task(id: tile?.src) { image = await CoverImage.image(for: tile?.src, api: model.api, maxPixels: 600) }
     }
 }

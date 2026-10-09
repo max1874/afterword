@@ -5,7 +5,7 @@ import type { Route } from "./+types/item";
 import { Cover } from "~/components/cover";
 import { MarkForm } from "~/components/mark-form";
 import { Stars } from "~/components/stars";
-import { profileFromParam, usesRatings } from "~/lib/accounts.server";
+import { chosenTiles, isTileKey, profileFromParam, saveTile, usesRatings } from "~/lib/accounts.server";
 import { fillDetailsNow, hasArtwork } from "~/lib/details.server";
 import { parseMark } from "~/lib/catalog.server";
 import { deleteMark, getItem, saveMark, today } from "~/lib/db.server";
@@ -40,6 +40,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ratings: usesRatings(user),
     // Items are shared, so only an admin replaces their artwork.
     canChooseArtwork: Boolean(viewer?.is_admin) && hasArtwork(item),
+    // Which of your kind tiles show this work, so the links offer to set or undo.
+    tiles: mine ? (Object.entries(chosenTiles(user)).filter(([, id]) => id === item.id).map(([key]) => key) as string[]) : [],
     viewerHandle: viewer?.handle ?? null,
     today: today(),
   };
@@ -50,6 +52,15 @@ export async function action({ request, params }: Route.ActionArgs) {
   const viewer = await getViewer(request);
   if (viewer?.id !== user.id) throw data(null, { status: 403 });
   const form = await request.formData();
+
+  // 设为磁贴封面: shows this work on one of your kind tiles, or goes back to the newest mark.
+  if (form.get("intent") === "tile") {
+    const key = form.get("key");
+    const item = await getItem(params.id, user.id);
+    if (!isTileKey(key) || !item || (key !== "all" && key !== item.kind)) throw data(null, { status: 400 });
+    await saveTile(user, key, form.get("set") ? item.id : null);
+    return redirect(`/@${user.handle}/items/${params.id}`);
+  }
 
   if (form.get("intent") === "delete") {
     await deleteMark(user.id, params.id);
@@ -78,7 +89,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function ItemPage({ loaderData, actionData }: Route.ComponentProps) {
-  const { item, profile, mine, ratings, canChooseArtwork, viewerHandle, today } = loaderData;
+  const { item, profile, mine, ratings, canChooseArtwork, tiles, viewerHandle, today } = loaderData;
   const meta = [item.original_title, kindLabel(item.kind), item.year].filter(Boolean).join(" · ");
   const statusText = item.status ? `${statusLabel(item.status, item.kind)} · ${monthDay(item.marked_on!)}` : null;
 
@@ -100,18 +111,20 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
 
           <div className="mx-auto mt-5 w-full max-w-sm sm:mx-0">
             {mine ? (
-              <a
-                href="#mark"
-                className="flex h-12 items-center justify-center rounded-full bg-ink text-[16px] font-semibold text-paper transition hover:opacity-85"
-              >
-                {statusText ? `✓ ${statusText}` : "＋ 标记这部作品"}
-              </a>
+              <>
+                <QuickStatus kind={item.kind} current={item.status ?? null} />
+                <p className="mt-2.5 text-center text-sm text-muted sm:text-left">
+                  {item.status ? `${monthDay(item.marked_on!)}${statusLabel(item.status, item.kind)} · ` : "选一个状态标记它 · "}
+                  <a href="#mark" className="font-medium text-ink hover:opacity-70">
+                    {item.status ? "修改" : "写短评"}
+                  </a>
+                </p>
+              </>
             ) : statusText ? (
               <p className="flex h-12 items-center justify-center rounded-full bg-card/80 text-[15px] font-semibold backdrop-blur">
                 {joinText(profile.name, statusText)}
               </p>
             ) : null}
-            {mine ? <QuickStatus kind={item.kind} current={item.status ?? null} /> : null}
             {ratings && item.rating ? <Stars rating={item.rating} className="mt-3 block text-center text-lg sm:text-left" /> : null}
           </div>
         </div>
@@ -146,8 +159,8 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
           </section>
         ) : null}
 
-        {item.source_url || canChooseArtwork ? (
-          <p className="flex gap-4 text-sm text-muted">
+        {item.source_url || canChooseArtwork || mine ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted">
             {item.source_url ? (
               <span>
                 来源：
@@ -162,7 +175,22 @@ export default function ItemPage({ loaderData, actionData }: Route.ComponentProp
                 更换横图
               </Link>
             ) : null}
-          </p>
+            {mine
+              ? ([item.kind, "all"] as const).map((key) => {
+                  const on = tiles.includes(key);
+                  return (
+                    <Form key={key} method="post">
+                      <input type="hidden" name="intent" value="tile" />
+                      <input type="hidden" name="key" value={key} />
+                      {on ? null : <input type="hidden" name="set" value="1" />}
+                      <button className="underline decoration-line underline-offset-4 hover:decoration-ink">
+                        {on ? "恢复" : "设为"}「{key === "all" ? "全部" : kindLabel(key)}」磁贴{on ? "默认图" : "封面"}
+                      </button>
+                    </Form>
+                  );
+                })
+              : null}
+          </div>
         ) : null}
 
         {mine ? (
