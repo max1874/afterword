@@ -60,6 +60,8 @@ nonisolated struct Me: Decodable, Equatable {
     let handle: String
     let name: String
     let isAdmin: Bool
+    /// Path of their photo; nil shows the initial of their name.
+    let avatar: String?
     /// Off when star ratings are turned off in settings; missing from older servers and caches.
     let ratings: Bool?
     /// The works chosen for the kind tiles on their home, by tile ("all", "comic"…); older servers omit it.
@@ -78,6 +80,7 @@ nonisolated struct KindStatusCount: Decodable, Hashable {
 nonisolated struct Profile: Decodable {
     let handle: String
     let name: String
+    let avatar: String?
     let ratings: Bool?
     let counts: [KindStatusCount]
 

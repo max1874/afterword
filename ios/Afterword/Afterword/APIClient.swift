@@ -66,6 +66,11 @@ final class APIClient {
         _ = try await send(method, "/api/v1/\(path)", body: body)
     }
 
+    /// Sends raw bytes as the body, such as an avatar image.
+    func upload(_ method: String, _ path: String, data: Data, contentType: String) async throws {
+        _ = try await send(method, "/api/v1/\(path)", body: nil, raw: (data, contentType))
+    }
+
     /// The passkey endpoint the web uses; `client: "app"` returns tokens in the body.
     func passkey(_ body: [String: Any]) async throws -> [String: Any] {
         var body = body
@@ -91,7 +96,7 @@ final class APIClient {
         return data
     }
 
-    private func send(_ method: String, _ path: String, body: Any?) async throws -> Data {
+    private func send(_ method: String, _ path: String, body: Any?, raw: (Data, String)? = nil) async throws -> Data {
         // Callers escape their own path segments and queries.
         guard let url = URL(string: path, relativeTo: server)?.absoluteURL else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
@@ -103,6 +108,9 @@ final class APIClient {
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } else if let (data, contentType) = raw {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+            request.httpBody = data
         }
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

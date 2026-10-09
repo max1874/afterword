@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createCookie, redirect } from "react-router";
 
-export type Viewer = { id: string; handle: string; name: string; is_admin: number; session_id: string };
+export type Viewer = { id: string; handle: string; name: string; is_admin: number; avatar_key: string | null; session_id: string };
 
 // Sessions slide: each day of use pushes expiry out again.
 const SESSION_DAYS = 90;
@@ -42,7 +42,7 @@ async function loadViewer(request: Request): Promise<Viewer | null> {
   if (!token) return null;
   const sessionId = await sha256Hex(token);
   const row = await env.DB.prepare(
-    `SELECT u.id, u.handle, u.name, u.is_admin, s.id AS session_id, s.last_seen_at
+    `SELECT u.id, u.handle, u.name, u.is_admin, u.avatar_key, s.id AS session_id, s.last_seen_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.id = ? AND s.expires_at > datetime('now')`,
   )

@@ -5,6 +5,7 @@ import { data, Form, useFetcher, useRevalidator, useSearchParams } from "react-r
 import type { Route } from "./+types/settings";
 import { RecoveryCodes } from "~/components/recovery-codes";
 import {
+  avatarSrc,
   createInvite,
   deleteOtherSessions,
   deletePasskey,
@@ -14,7 +15,9 @@ import {
   listPasskeys,
   listSessions,
   recoveryCodeStatements,
+  removeAvatar,
   revokeInvite,
+  saveAvatar,
   saveProfile,
   saveRatings,
   unusedRecoveryCodes,
@@ -37,7 +40,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     viewer.is_admin ? listInvites(viewer.id) : Promise.resolve(null),
   ]);
   return {
-    me: { id: viewer.id, handle: viewer.handle, name: viewer.name },
+    me: { id: viewer.id, handle: viewer.handle, name: viewer.name, avatar: avatarSrc(viewer) },
     ratings: usesRatings(user),
     passkeys,
     sessions: sessions.map((s) => ({ ...s, current: s.id === viewer.session_id })),
@@ -56,6 +59,16 @@ export async function action({ request }: Route.ActionArgs) {
     case "ratings":
       await saveRatings(viewer.id, field("ratings") === "on");
       return { intent: "ratings" };
+    case "avatar": {
+      const file = form.get("avatar");
+      if (!(file instanceof File)) return data({ intent: "avatar", error: "没有收到图片" }, { status: 400 });
+      const result = await saveAvatar(viewer, await file.arrayBuffer(), file.type);
+      if ("error" in result) return data({ intent: "avatar", error: result.error }, { status: 400 });
+      return { intent: "avatar" };
+    }
+    case "remove-avatar":
+      await removeAvatar(viewer);
+      return { intent: "avatar" };
     case "profile": {
       const result = await saveProfile(viewer.id, form);
       if ("error" in result) return data({ intent: "profile", error: result.error }, { status: 400 });
@@ -177,7 +190,8 @@ function Profile({ me }: { me: Data["me"] }) {
 
   return (
     <Section title="资料" note={`主页地址：/@${me.handle}`}>
-      <fetcher.Form method="post" className="grid gap-4 sm:grid-cols-2">
+      <Avatar me={me} />
+      <fetcher.Form method="post" className="mt-5 grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="intent" value="profile" />
         <label className="block">
           <span className="mb-1.5 block text-sm text-muted">名字</span>
@@ -194,6 +208,45 @@ function Profile({ me }: { me: Data["me"] }) {
         </div>
       </fetcher.Form>
     </Section>
+  );
+}
+
+/** The photo beside your name: choosing a file uploads it straight away. */
+function Avatar({ me }: { me: Data["me"] }) {
+  const fetcher = useFetcher<typeof action>();
+  const result = fetcher.data?.intent === "avatar" ? fetcher.data : null;
+  const busy = fetcher.state !== "idle";
+  return (
+    <div className="flex items-center gap-4">
+      <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-b from-[#8e8e93] to-[#636366] text-2xl font-semibold text-white">
+        {me.avatar ? <img src={me.avatar} alt="" className="size-full object-cover" /> : me.name.slice(0, 1).toUpperCase()}
+      </span>
+      <fetcher.Form method="post" encType="multipart/form-data" className="flex flex-wrap items-center gap-3 text-sm">
+        <label className={`cursor-pointer rounded-full bg-card px-4 py-1.5 font-medium transition hover:opacity-80 ${busy ? "pointer-events-none opacity-60" : ""}`}>
+          {busy ? "上传中…" : me.avatar ? "更换头像" : "上传头像"}
+          <input
+            type="file"
+            name="avatar"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="sr-only"
+            onChange={(event) => {
+              const form = event.currentTarget.form;
+              if (event.currentTarget.files?.length && form) {
+                const body = new FormData(form);
+                body.set("intent", "avatar");
+                fetcher.submit(body, { method: "post", encType: "multipart/form-data" });
+              }
+            }}
+          />
+        </label>
+        {me.avatar ? (
+          <button name="intent" value="remove-avatar" disabled={busy} className="text-muted hover:text-ink">
+            移除
+          </button>
+        ) : null}
+        {result && "error" in result ? <span className="text-danger">{result.error}</span> : null}
+      </fetcher.Form>
+    </div>
   );
 }
 

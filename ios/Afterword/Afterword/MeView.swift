@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// 我的: who you are and what you have marked, the everyday actions, and the account
@@ -14,7 +15,7 @@ struct MeView: View {
             if let me = model.me {
                 Section {
                     // Read here, not inside the row, so the numbers update when they arrive.
-                    MeHeader(me: me, profile: profile)
+                    MeHeader(me: me, profile: profile, error: $error)
                 }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 8, trailing: 4))
@@ -38,9 +39,6 @@ struct MeView: View {
 
                 Section {
                     NavigationLink { AccountView() } label: { Label("账号与安全", systemImage: "lock.shield") }
-                    if me.isAdmin {
-                        NavigationLink { InvitesView() } label: { Label("邀请朋友", systemImage: "person.badge.plus") }
-                    }
                 }
 
                 if let error {
@@ -98,11 +96,27 @@ private struct MeHeader: View {
     @Environment(AppModel.self) private var model
     let me: Me
     let profile: Profile?
+    @Binding var error: String?
+
+    @State private var photo: PhotosPickerItem?
+    @State private var uploading = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
-                Avatar(name: me.name, size: 60)
+                PhotosPicker(selection: $photo, matching: .images) {
+                    Avatar(name: me.name, path: me.avatar, size: 60)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: uploading ? "arrow.up.circle.fill" : "camera.circle.fill")
+                                .font(.system(size: 20))
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(Color.paper, Color.muted)
+                                .background(Circle().fill(Color.paper).padding(2))
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(uploading)
+                .accessibilityLabel("更换头像")
                 VStack(alignment: .leading, spacing: 2) {
                     Text(me.name).font(.title2.bold())
                     Text("@\(me.handle)").font(.subheadline).foregroundStyle(Color.muted)
@@ -132,23 +146,64 @@ private struct MeHeader: View {
             .padding(.vertical, 14)
             .background(RoundedRectangle(cornerRadius: 16).fill(Color.card))
         }
+        .onChange(of: photo) { _, item in
+            guard let item else { return }
+            Task { await upload(item) }
+        }
+    }
+
+    /// A square crop of the photo, 512px, as JPEG: small enough to load at once everywhere.
+    private func upload(_ item: PhotosPickerItem) async {
+        uploading = true
+        error = nil
+        defer {
+            uploading = false
+            photo = nil
+        }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self), let picked = UIImage(data: data) else {
+                throw APIError(status: 0, message: "读不出这张照片")
+            }
+            let side = min(picked.size.width, picked.size.height)
+            let crop = CGRect(x: (picked.size.width - side) / 2, y: (picked.size.height - side) / 2, width: side, height: side)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let square = UIGraphicsImageRenderer(size: CGSize(width: 512, height: 512), format: format).image { _ in
+                picked.draw(in: CGRect(x: -crop.minX * 512 / side, y: -crop.minY * 512 / side, width: picked.size.width * 512 / side, height: picked.size.height * 512 / side))
+            }
+            guard let jpeg = square.jpegData(compressionQuality: 0.85) else { throw APIError(status: 0, message: "照片转换失败") }
+            try await model.api.upload("PUT", "avatar", data: jpeg, contentType: "image/jpeg")
+            await model.loadMe()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 
-/// A round initial, as on the web's header.
+/// A person's photo, or the initial of their name, as on the web's header.
 struct Avatar: View {
+    @Environment(AppModel.self) private var model
     let name: String
+    let path: String?
     let size: CGFloat
+
+    @State private var image: UIImage?
 
     var body: some View {
         Circle()
             .fill(Color.ink)
             .frame(width: size, height: size)
             .overlay {
-                Text(name.first.map { String($0).uppercased() } ?? "")
-                    .font(.system(size: size * 0.42, weight: .semibold))
-                    .foregroundStyle(Color.paper)
+                if path != nil, let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    Text(name.first.map { String($0).uppercased() } ?? "")
+                        .font(.system(size: size * 0.42, weight: .semibold))
+                        .foregroundStyle(Color.paper)
+                }
             }
+            .clipShape(Circle())
+            .task(id: path) { image = await CoverImage.image(for: path, api: model.api, maxPixels: 300) }
     }
 }
 
@@ -214,6 +269,16 @@ struct AccountView: View {
             Button("保存") { Task { await saveProfile() } }
                 .disabled(busy || (name == model.me?.name && handle == model.me?.handle))
             if let profileMessage { Text(profileMessage).font(.footnote).foregroundStyle(Color.muted) }
+            if model.me?.avatar != nil {
+                Button("移除头像", role: .destructive) {
+                    Task {
+                        await perform {
+                            try await model.api.api("DELETE", "avatar")
+                            await model.loadMe()
+                        }
+                    }
+                }
+            }
         } header: {
             Text("个人资料")
         } footer: {
@@ -333,77 +398,6 @@ struct AccountView: View {
         await perform {
             let codes: RecoveryCodes = try await model.api.api("POST", "recovery-codes")
             model.freshRecoveryCodes = codes.codes
-        }
-    }
-}
-
-/// 邀请朋友: one-time links that each create one account; admins only.
-struct InvitesView: View {
-    @Environment(AppModel.self) private var model
-    @State private var settings: AccountSettings?
-    @State private var error: String?
-    @State private var busy = false
-
-    var body: some View {
-        Form {
-            if let invites = settings?.invites { inviteSection(invites) }
-            if let error {
-                Text(error).foregroundStyle(Color.danger)
-            }
-        }
-        .navigationTitle("邀请朋友")
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-    }
-
-    private func inviteSection(_ invites: [Invite]) -> some View {
-        Section {
-            ForEach(invites) { invite in
-                VStack(alignment: .leading, spacing: 4) {
-                    if invite.usedAt != nil {
-                        Text(invite.usedHandle.map { "@\($0) 已加入" } ?? "已使用").foregroundStyle(Color.muted)
-                    } else {
-                        ShareLink(item: invite.url) { Text(invite.url).font(.footnote.monospaced()).lineLimit(1) }
-                        Text("\(shortDate(invite.expiresAt)) 前有效，只能用一次").font(.footnote).foregroundStyle(Color.muted)
-                    }
-                }
-                .swipeActions {
-                    if invite.usedAt == nil {
-                        Button("撤销", role: .destructive) {
-                            Task { await perform { try await model.api.api("DELETE", "invites/\(invite.code)") } }
-                        }
-                    }
-                }
-            }
-            Button("生成邀请链接") {
-                Task { await perform { let _: CreatedInvite = try await model.api.api("POST", "invites") } }
-            }
-        } header: {
-            Text("邀请")
-        } footer: {
-            Text("每个链接 14 天内有效，只能注册一个账号。")
-        }
-    }
-
-    private func load() async {
-        if settings == nil { settings = model.api.cached("settings") }
-        do {
-            settings = try await model.api.api("GET", "settings")
-        } catch is CancellationError {
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func perform(_ action: () async throws -> Void) async {
-        busy = true
-        error = nil
-        defer { busy = false }
-        do {
-            try await action()
-            await load()
-        } catch {
-            self.error = error.localizedDescription
         }
     }
 }

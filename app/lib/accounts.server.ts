@@ -15,7 +15,33 @@ export type User = {
   ratings?: number;
   /** JSON of the works chosen for the kind tiles on their home, by tile; missing before migration 0009. */
   tiles?: string | null;
+  /** Their photo in R2 (`covers/avatar-…`); null shows the initial of their name. */
+  avatar_key?: string | null;
 };
+
+/** Where the avatar is served, beside the covers; null when there is none. */
+export const avatarSrc = (user: Pick<User, "avatar_key"> | null | undefined) => (user?.avatar_key ? `/${user.avatar_key}` : null);
+
+const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+/** Stores a new avatar (the app sends a 512px square JPEG; the web the file as chosen) and drops the old one. */
+export async function saveAvatar(user: Pick<User, "id" | "avatar_key">, body: ArrayBuffer, type: string) {
+  const contentType = type.split(";")[0].trim().toLowerCase();
+  if (!AVATAR_TYPES.includes(contentType)) return { error: "头像要是 JPEG、PNG、WebP 或 GIF 图片" };
+  if (!body.byteLength) return { error: "没有收到图片" };
+  if (body.byteLength > MAX_AVATAR_BYTES) return { error: "图片太大了，最大 5MB" };
+  const key = `covers/avatar-${crypto.randomUUID()}`;
+  await env.COVERS.put(key, body, { httpMetadata: { contentType } });
+  await env.DB.prepare("UPDATE users SET avatar_key = ? WHERE id = ?").bind(key, user.id).run();
+  if (user.avatar_key) await env.COVERS.delete(user.avatar_key);
+  return { avatar: `/${key}` };
+}
+
+export async function removeAvatar(user: Pick<User, "id" | "avatar_key">) {
+  await env.DB.prepare("UPDATE users SET avatar_key = NULL WHERE id = ?").bind(user.id).run();
+  if (user.avatar_key) await env.COVERS.delete(user.avatar_key);
+}
 
 /** Whether this person rates what they mark; on unless they turned it off in settings. */
 export const usesRatings = (user: Pick<User, "ratings"> | null | undefined) => user?.ratings !== 0;

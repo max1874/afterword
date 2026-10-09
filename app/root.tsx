@@ -16,7 +16,7 @@ import { getViewer } from "./lib/session.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const viewer = await getViewer(request);
-  return { viewer: viewer ? { handle: viewer.handle, name: viewer.name } : null };
+  return { viewer: viewer ? { handle: viewer.handle, name: viewer.name, avatar: viewer.avatar_key ? `/${viewer.avatar_key}` : null } : null };
 }
 
 export function useRoot() {
@@ -75,9 +75,13 @@ function Header() {
           <Link
             to="/settings"
             title="设置"
-            className="grid size-8 place-items-center rounded-full bg-gradient-to-b from-[#8e8e93] to-[#636366] text-[13px] font-semibold text-white"
+            className="grid size-8 place-items-center overflow-hidden rounded-full bg-gradient-to-b from-[#8e8e93] to-[#636366] text-[13px] font-semibold text-white"
           >
-            {root.viewer.name.slice(0, 1).toUpperCase()}
+            {root.viewer.avatar ? (
+              <img src={root.viewer.avatar} alt="" className="size-full object-cover" />
+            ) : (
+              root.viewer.name.slice(0, 1).toUpperCase()
+            )}
           </Link>
         </nav>
       ) : null}

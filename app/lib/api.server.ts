@@ -11,10 +11,13 @@ import {
   listPasskeys,
   listSessions,
   recoveryCodeStatements,
+  removeAvatar,
   revokeInvite,
   saveProfile,
+  avatarSrc,
   chosenTiles,
   isTileKey,
+  saveAvatar,
   saveRatings,
   saveTile,
   spendRecoveryCode,
@@ -109,6 +112,7 @@ on("GET", "me", async ({ request }) => {
     handle: viewer.handle,
     name: viewer.name,
     isAdmin: Boolean(viewer.is_admin),
+    avatar: avatarSrc(viewer),
     ratings: usesRatings(user),
     // The works chosen for the kind tiles on their home, by tile.
     tiles: chosenTiles(user),
@@ -136,7 +140,13 @@ on("POST", "auth/logout", async ({ request }) => {
 
 on("GET", "users/:handle", async ({ params }) => {
   const user = await userOrThrow(params[0]);
-  return json({ handle: user.handle, name: user.name, ratings: usesRatings(user), counts: await countByKindAndStatus(user.id) });
+  return json({
+    handle: user.handle,
+    name: user.name,
+    avatar: avatarSrc(user),
+    ratings: usesRatings(user),
+    counts: await countByKindAndStatus(user.id),
+  });
 });
 
 on("GET", "users/:handle/marks", async ({ params, url }) => {
@@ -315,6 +325,19 @@ on("PATCH", "profile", async ({ request }) => {
   const result = await saveProfile(viewer.id, fields(await body(request)));
   if ("error" in result) throw new ApiError(400, result.error);
   return json(result.saved);
+});
+
+// The image itself is the body, with its Content-Type.
+on("PUT", "avatar", async ({ request }) => {
+  const viewer = await viewerOrThrow(request);
+  const result = await saveAvatar(viewer, await request.arrayBuffer(), request.headers.get("Content-Type") ?? "");
+  if ("error" in result) throw new ApiError(400, result.error);
+  return json(result);
+});
+
+on("DELETE", "avatar", async ({ request }) => {
+  await removeAvatar(await viewerOrThrow(request));
+  return json({ avatar: null });
 });
 
 on("PATCH", "preferences", async ({ request }) => {

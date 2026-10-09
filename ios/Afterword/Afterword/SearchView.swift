@@ -15,6 +15,7 @@ struct SearchView: View {
     @State private var picking: String?
     @State private var error: String?
     @State private var showManual = false
+    @FocusState private var focused: Bool
 
     private var text: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -30,7 +31,13 @@ struct SearchView: View {
         .listStyle(.plain)
         .scrollDismissesKeyboard(.immediately)
         .navigationTitle("搜索")
-        .searchable(text: $query, prompt: "作品名，中文、原名都可以")
+        // Always shown under the title: iOS 26 puts a search tab's field in the tab bar, but
+        // iOS 27 treats the tab like any other and hides the field until the list is pulled down.
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "作品名，中文、原名都可以")
+        .searchFocused($focused)
+        // Opening the tab, or ＋ on the home page, is for typing straight away.
+        .onAppear { if query.isEmpty { focused = true } }
+        .onChange(of: model.tab) { _, tab in if tab == .search, query.isEmpty { focused = true } }
         .onSubmit(of: .search) { Task { await search() } }
         .onChange(of: kind) { if searched != nil { Task { await search() } } }
         // Your own marks follow the typing; the sources are asked on 搜索, since they take seconds.
